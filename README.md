@@ -1,4 +1,4 @@
-# Diffractive_Response_Modeling
+# DiffractML
 
 ***!! Still under development !!***
 
@@ -30,8 +30,8 @@ Ensure you have the following installed:
 Clone the repository:
 
 ```bash
-git clone https://github.com/Alexin-CH/Diffractive_Response_Modeling.git
-cd Diffractive_Response_Modeling
+git clone https://github.com/Alexin-CH/DiffractML.git
+cd DiffractML
 ```
 
 Install the required dependencies:
