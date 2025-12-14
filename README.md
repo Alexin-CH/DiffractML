@@ -37,7 +37,7 @@ cd DiffractML
 Install the required dependencies:
 
 ```bash
-make venv
+make install
 ```
 
 or
