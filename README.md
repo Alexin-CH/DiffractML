@@ -35,6 +35,11 @@ cd DiffractML
 ```
 
 Install the required dependencies:
+``` bash
+make
+```
+
+or
 
 ```bash
 make install
@@ -43,6 +48,8 @@ make install
 or
 
 ```bash
+python3 -m venv venv
+source venv/bin/activate
 pip install -r requirements.txt
 ```
 
