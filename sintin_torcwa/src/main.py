@@ -1,4 +1,7 @@
-# Python script: RCWA simulation of a layered metasurface using TORCWA
+import os
+
+current_dir = os.path.dirname(os.path.abspath(__file__))
+
 import torch
 import numpy as np
 from matplotlib import pyplot as plt
@@ -12,67 +15,100 @@ device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 def simulate_spectrum(wl_list, angle_deg=torch.tensor(30, device=device), order=3):
     """Compute reflection and transmission spectra over wavelengths at a given angle."""
-    R_list = []
-    T_list = []
+    results = {'xx':[], 'yx':[], 'xy':[], 'yy':[], 'pp':[], 'sp':[], 'ps':[], 'ss':[]}
     tqdm_wl = tqdm(wl_list)
+    
     for wl in tqdm_wl:
         tqdm_wl.set_description(f"Simulating λ={wl:.1f} nm")
         args = RCWAArgs(
             wl=wl,
             ang=angle_deg,
             nh=order,
-            discretization=256,
+            discretization=2**12,
             sin_amplitude=torch.tensor(55.0, device=device),
             sin_period=torch.tensor(1000.0, device=device)
         )
+
+        # Setup and run simulation
         sim, _  = setup(args=args, device = device)
-        # Get Reflextion and Transmission coefficients for all polarizations
-        R_pol = []
-        T_pol = []
+
+        # Get Reflextion and Transmission coefficients (order 0)
         for pol in ['xx', 'yx', 'xy', 'yy', 'pp', 'sp', 'ps', 'ss']:
-            R0 = sim.S_parameters(orders=[0,0], direction='forward',
-                                port='reflection', polarization=pol, ref_order=[0,0])
-            T0 = sim.S_parameters(orders=[0,0], direction='forward',
-                                port='transmission', polarization=pol, ref_order=[0,0])
+            RF0 = sim.S_parameters(
+                orders=[0,0],
+                direction='f',
+                port='reflection',
+                polarization=pol,
+                ref_order=[0,0]
+            )
+            RB0 = sim.S_parameters(
+                orders=[0,0],
+                direction='b',  
+                port='reflection',
+                polarization=pol,
+                ref_order=[0,0]
+            )
+            TF0 = sim.S_parameters(
+                orders=[0,0],
+                direction='f',
+                port='transmission',
+                polarization=pol,
+                ref_order=[0,0]
+            )
+            TB0 = sim.S_parameters(
+                orders=[0,0],
+                direction='b',
+                port='transmission',
+                polarization=pol,
+                ref_order=[0,0]
+            )
 
-            R = R0.abs() ** 2
-            T = T0.abs() ** 2
-
-            R_pol.append(R.cpu())
-            T_pol.append(T.cpu())
-        R_list.append(R_pol)
-        T_list.append(T_pol)
-
-    return np.array(R_list), np.array(T_list), sim
+            results[pol].append({
+                'wl': wl.detach().cpu().item(),
+                'RF0': RF0.abs().detach().cpu().item() ** 2,
+                'RB0': RB0.abs().detach().cpu().item() ** 2,
+                'TF0': TF0.abs().detach().cpu().item() ** 2,
+                'TB0': TB0.abs().detach().cpu().item() ** 2,
+            })
+    return results, sim
 
 # Example: compute spectrum at 30° incidence
-wavelengths = torch.linspace(1000., 1700., 10)
+wavelengths = torch.linspace(500., 2000., 100)
 inc_angle_deg = torch.tensor(30., device=device)
-R_spec, T_spec, sim = simulate_spectrum(wavelengths, angle_deg=inc_angle_deg, order=3)
+results, sim = simulate_spectrum(wavelengths, angle_deg=inc_angle_deg, order=4)
 
-wavelengths = wavelengths.cpu()  # Move to CPU for plotting
-A_spec = 1.-R_spec - T_spec  # Absorption spectrum
+wavelengths = wavelengths.cpu().detach()  # Move to CPU for plotting
 
 # Plot reflection and transmission vs wavelength
-if False:
+if True:
     for idx, pol in enumerate(['xx', 'yy', 'pp', 'sp', 'ps', 'ss']):
-        plt.figure(figsize=(6,4))
-        plt.plot(wavelengths, T_spec[:, idx], label='Transmission (T)')
-        plt.plot(wavelengths, R_spec[:, idx], label='Reflection (R)')
-        #plt.plot(wavelengths, A_spec[:, idx], label='Absorption (A)')  
+        RF0 = torch.tensor([entry['RF0'] for entry in results[pol]])
+        TF0 = torch.tensor([entry['TF0'] for entry in results[pol]])
+        RB0 = torch.tensor([entry['RB0'] for entry in results[pol]])
+        TB0 = torch.tensor([entry['TB0'] for entry in results[pol]])
+
+        plt.figure(figsize=(10,6))
+        plt.plot(wavelengths, RF0, label='Reflection Forward Order 0')
+        plt.plot(wavelengths, TF0, label='Transmission Forward Order 0')
+        plt.plot(wavelengths, RB0, label='Reflection Backward Order 0')
+        plt.plot(wavelengths, TB0, label='Transmission Backward Order 0')
+        # plt.plot(wavelengths, A_spec[:, idx], label='Absorption (A)')  
         plt.title(f"Reflectance and Transmittance (θ={inc_angle_deg}°) at {pol} polarization")
         plt.xlabel("Wavelength (nm)")
         plt.ylabel("Efficiency")
-        plt.legend()
+        plt.ylim(0, 1)
+        plt.legend(loc='center left', bbox_to_anchor=(1, 0.5))
         plt.grid()
-        plt.show()
+        plt.tight_layout()
+        plt.savefig(f"{current_dir}/img/spectrum_{pol}_{inc_angle_deg:.0f}deg.png", dpi=300)
+        plt.pause(1)
 
-if True:
+if False:
     diffraction_angles_in = []
     diffraction_angles_out = []
     for order in torch.arange(0, 10):
-        angles_in = sim.diffraction_angle(orders=[order, order], layer='in')[0].cpu()
-        angles_out = sim.diffraction_angle(orders=[order, order], layer='out')[0].cpu()
+        angles_in = sim.diffraction_angle(orders=[order, order], layer='in')[0].cpu().detach()
+        angles_out = sim.diffraction_angle(orders=[order, order], layer='out')[0].cpu().detach()
         diffraction_angles_in.append(angles_in)
         diffraction_angles_out.append(angles_out)
 
