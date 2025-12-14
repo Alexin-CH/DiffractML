@@ -1,3 +1,10 @@
+import os
+
+current_dir = os.path.dirname(os.path.abspath(__file__))
+
+import pandas as pd
+import numpy as np
+
 import torch
 import torcwa
 
@@ -48,7 +55,22 @@ def setup(
     eps_air   = torch.tensor(1.0, dtype=sim_dtype, device=device)
     n_sub     = 1.44
     eps_sub   = torch.tensor(n_sub**2, dtype=sim_dtype, device=device)
-    eps_metal = torch.tensor(3.61 + 6.03j, dtype=sim_dtype, device=device)
+    
+    TiN_RefIdx = pd.read_csv(f"{current_dir}/TiN-RefIdx-Beliaev-sputtering.csv").astype(float)
+    n = np.interp(
+        args.wl.cpu().detach().numpy() / 1000.0,
+        TiN_RefIdx['wl (microm)'].values,
+        TiN_RefIdx['n'].values
+    )
+    k = np.interp(
+        args.wl.cpu().detach().numpy() / 1000.0,
+        TiN_RefIdx['wl (microm)'].values,
+        TiN_RefIdx['k'].values
+    )
+
+    eps = (n**2 - k**2) + 1j*(2*n*k)
+    # print(f"At λ={args.wl.item():.1f} nm, TiN n={n:.3f}, k={k:.3f}, ε={eps:.3f}")
+    eps_metal = torch.tensor(eps, dtype=sim_dtype, device=device)
 
     # 5) Sinusoidal corrugation parameters
     amplitude  = args.sin_amplitude  # nm
