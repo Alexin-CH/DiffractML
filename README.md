@@ -12,7 +12,7 @@ This repository contains code and resources for modeling the optical response of
 
 ## Key Features
 
-- **RCWA Implementation**: High-performance simulations of light diffraction for various diffractive structures. Thanks to the [TORCWA](https://github.com/kch3782/torcwa) package.
+- **RCWA Implementation**: High-performance simulations of light diffraction for various diffractive structures. Thanks to the [TORCWA](https://github.com/Alexin-CH/TORCWA) package.
 - **ML Integration**: Incorporates machine learning techniques to optimize models and improve efficiency.
 - **Visualization Tools**: Generates intuitive plots for analyzing optical responses.
 
