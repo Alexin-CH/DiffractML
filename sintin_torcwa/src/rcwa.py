@@ -10,13 +10,23 @@ import torcwa
 
 class RCWAArgs:
     """Class to hold simulation parameters."""
-    def __init__(self, wl, ang, nh, discretization, sin_amplitude, sin_period):
+    def __init__(
+        self,
+        wl,
+        ang,
+        nh,
+        discretization,
+        sin_amplitude,
+        sin_period,
+        uni_layer_h
+        ):
         self.wl = wl.requires_grad_()
         self.ang = ang.requires_grad_()
         self.nh = nh
         self.discretization = discretization
         self.sin_amplitude = sin_amplitude.requires_grad_()
         self.sin_period = sin_period.requires_grad_()
+        self.uni_layer_h = uni_layer_h
 
 def setup(
         args,
@@ -35,12 +45,14 @@ def setup(
                 discretization: Grid size in x and y.
                 sin_amplitude: Amplitude of sinusoidal corrugation in nm.   
                 sin_period: Period of sinusoidal corrugation in nm.
+                uni_layer_h: Height of uniform metal layer in nm.
         sim_dtype: Data type for simulation tensors (default: torch.complex64).
         geo_dtype: Data type for geometry tensors (default: torch.float32).
         device: Device to run the simulation on ('cpu' or 'cuda').
     """
     # 3) Unit cell size (nm)
-    Lx, Ly = 1000.0, 1000.0
+    Lx = args.sin_period.cpu().detach().item()
+    Ly = args.sin_period.cpu().detach().item()
     L = [Lx, Ly]
 
     torcwa.rcwa_geo.dtype = geo_dtype
@@ -53,7 +65,7 @@ def setup(
 
     # 4) Materials
     eps_air   = torch.tensor(1.0, dtype=sim_dtype, device=device)
-    n_sub     = 1.44
+    n_sub     = 1.5
     eps_sub   = torch.tensor(n_sub**2, dtype=sim_dtype, device=device)
     
     TiN_RefIdx = pd.read_csv(f"{current_dir}/TiN-RefIdx-Beliaev-sputtering.csv").astype(float)
@@ -82,52 +94,60 @@ def setup(
     zmax = 1000.0  # nm
     z = torch.linspace(-zmax, zmax, 500, device=device)
     nz = z.numel()
-    x_slice = Lx / 2
+    x_slice = 0.5 * Lx
     x_idx = torch.argmin(torch.abs(torcwa.rcwa_geo.x - x_slice)).item()
 
     # Precompute height profile h(x,y)
-    X, Y = torch.meshgrid(torcwa.rcwa_geo.x,
-                          torcwa.rcwa_geo.y,
-                          indexing="xy")
+    X, Y = torch.meshgrid(
+        torcwa.rcwa_geo.x,
+        torcwa.rcwa_geo.y,
+        indexing="xy"
+    )
     h = amplitude * torch.sin(2 * torch.pi * X / period) + amplitude
 
     def create_pattern_layer(z_mid, base):
         # Returns a mask = 1 where metal, 0 where air
         return (h >= (z_mid - base)).to(sim_dtype)
 
-    # 7) Build and run RCWA simulation
+    # Build and run RCWA simulation
     freq = 1.0 / args.wl  # in 1/nm
-    sim = torcwa.rcwa(freq=freq,
-                      order=[0, args.nh],
-                      L=L,
-                      dtype=sim_dtype,
-                      device=device)
+    sim = torcwa.rcwa(
+        freq=freq,
+        order=[0, args.nh],
+        L=L,
+        dtype=sim_dtype,
+        device=device
+    )
 
     # Prepare permittivity map (z vs y) for diagnostics
-    perm_map = torch.zeros((nz, torcwa.rcwa_geo.ny),
-                           dtype=sim_dtype,
-                           device=device)
+    perm_map = torch.zeros(
+        (nz, torcwa.rcwa_geo.ny),
+        dtype=sim_dtype,
+        device=device
+    )
 
-    # 7.1) Superstrate (air)
-    total_struct = 2 * amplitude + 50.0
+    uniform_layer_height = args.uni_layer_h
+
+    # Superstrate
+    total_struct = 2 * amplitude + uniform_layer_height
     mask_sup = (z >= total_struct)
     perm_map[mask_sup, :] = eps_air
     sim.add_input_layer(eps=eps_air)
     sim.add_output_layer(eps=eps_sub)
 
-    # 7.2) Incident wave and angle
+    # Incident wave and angle
     sim.set_incident_angle(inc_ang=args.ang * torch.pi/180, azi_ang=0.0)
     sim.source_planewave(amplitude=[1.0, 0.0], direction="f")
 
-    # 7.3) Uniform metal base layer (50 nm)
+    # Uniform metal base layer
     cumul = 0.0
-    z_bot, z_top = cumul, cumul + 50.0
-    sim.add_layer(thickness=50.0, eps=eps_metal)
+    z_bot, z_top = cumul, cumul + uniform_layer_height
+    sim.add_layer(thickness=uniform_layer_height, eps=eps_metal)
     idx = (z >= z_bot) & (z < z_top)
     perm_map[idx, :] = eps_metal
     cumul = z_top
 
-    # 7.4) Sinusoidal layers
+    # Sinusoidal layers
     base = cumul
     for _ in range(num_layers):
         z_bot = cumul
@@ -143,11 +163,11 @@ def setup(
         perm_map[idx, :] = layer_eps[x_idx, :]
         cumul = z_top
 
-    # 7.5) Substrate (SiO₂)
+    # Substrate
     mask_sub = (z < 0.0)
     perm_map[mask_sub, :] = eps_sub
 
-    # 7.6) Solve S‐matrix and compute reflectance/transmittance
+    # Solve S‐matrix and compute reflectance/transmittance
     sim.solve_global_smatrix()
 
     return sim, perm_map
