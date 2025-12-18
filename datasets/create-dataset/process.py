@@ -7,7 +7,7 @@ import numpy as np
 import pandas as pd
 from tqdm import tqdm
 
-import sintin_torcwa.rcwa as rcwa
+import sintin_torcwa.simulation as rcwa
 
 def parse():
     parser = argparse.ArgumentParser(
