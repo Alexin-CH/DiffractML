@@ -1,6 +1,6 @@
 # DiffractML
 
-***!! Still under development !!***
+***!! Still under research & development !!***
 
 This repository contains code and resources for modeling the optical response of diffractive structures using Rigorous Coupled-Wave Analysis (RCWA). The project aims to integrate advanced computational techniques and MAchine Learning (ML) algorithms to enhance the accuracy and predictive capabilities of optical simulations.
 
