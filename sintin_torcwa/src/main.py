@@ -25,8 +25,9 @@ def simulate_spectrum(wl_list, angle_deg=torch.tensor(30, device=device), order=
             ang=angle_deg,
             nh=order,
             discretization=2**12,
+            sin_period=torch.tensor(1000.0, device=device),
             sin_amplitude=torch.tensor(55.0, device=device),
-            sin_period=torch.tensor(1000.0, device=device)
+            uni_layer_h=torch.tensor(50.0, device=device)
         )
 
         # Setup and run simulation
@@ -70,18 +71,18 @@ def simulate_spectrum(wl_list, angle_deg=torch.tensor(30, device=device), order=
                 'TF0': TF0.abs().detach().cpu().item() ** 2,
                 'TB0': TB0.abs().detach().cpu().item() ** 2,
             })
-    return results, sim
+    return results, sim, args
 
 # Example: compute spectrum at 30° incidence
-wavelengths = torch.linspace(500., 2000., 100)
+wavelengths = torch.linspace(300., 2000., 200)
 inc_angle_deg = torch.tensor(30., device=device)
-results, sim = simulate_spectrum(wavelengths, angle_deg=inc_angle_deg, order=4)
+results, sim, args = simulate_spectrum(wavelengths, angle_deg=inc_angle_deg, order=4)
 
 wavelengths = wavelengths.cpu().detach()  # Move to CPU for plotting
 
 # Plot reflection and transmission vs wavelength
 if True:
-    for idx, pol in enumerate(['xx', 'yy', 'pp', 'sp', 'ps', 'ss']):
+    for idx, pol in enumerate(['xx', 'yx', 'xy', 'yy', 'pp', 'sp', 'ps', 'ss']):
         RF0 = torch.tensor([entry['RF0'] for entry in results[pol]])
         TF0 = torch.tensor([entry['TF0'] for entry in results[pol]])
         RB0 = torch.tensor([entry['RB0'] for entry in results[pol]])
@@ -100,7 +101,11 @@ if True:
         plt.legend(loc='center left', bbox_to_anchor=(1, 0.5))
         plt.grid()
         plt.tight_layout()
-        plt.savefig(f"{current_dir}/img/spectrum_{pol}_{inc_angle_deg:.0f}deg.png", dpi=300)
+        filename = f"spectrum_{pol}_{inc_angle_deg:.0f}deg_{args.sin_period:.0f}_{args.sin_amplitude:.0f}.png"
+        plt.savefig(
+            f"{current_dir}/img/{filename}",
+            dpi=300
+        )
         plt.pause(1)
 
 if False:
