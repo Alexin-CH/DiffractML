@@ -39,20 +39,6 @@ Install the required dependencies:
 make
 ```
 
-or
-
-```bash
-make install
-```
-
-or
-
-```bash
-python3 -m venv venv
-source venv/bin/activate
-pip install -r requirements.txt
-```
-
 ## Usage
 
 This repository includes many projects and scripts. Main scripts are located in the `src` directory.
