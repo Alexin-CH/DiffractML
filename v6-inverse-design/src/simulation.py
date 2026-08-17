@@ -7,23 +7,25 @@ Fixes the bugs found in the internship code (archive/v5-hybrid-order):
     S-parameter columns ended up identical)
   * hard-threshold (``h >= z_mid``) masks -> smooth sigmoid masks so that
     gradients flow w.r.t. geometry parameters
+
+TORCWA is consumed as the ``torcwa`` package (the TORCWA submodule was renamed
+from ``src`` to ``torcwa`` and is installed editable with ``pip install -e
+TORCWA/``).
 """
 
 import os
-import sys
 
 import torch
 
-_TORCWA_ROOT = os.path.normpath(
-    os.path.join(os.path.dirname(__file__), "..", "..", "TORCWA")
-)
-if _TORCWA_ROOT not in sys.path:
-    sys.path.insert(0, _TORCWA_ROOT)
+import torcwa
 
-import src as torcwa  # noqa: E402
-
-_INDEX_CSV = os.path.join(
-    _TORCWA_ROOT, "simulations", "sin_tin", "TiN-RefIdx-labo.csv"
+_INDEX_CSV = os.path.normpath(
+    os.path.join(
+        os.path.dirname(os.path.dirname(torcwa.__file__)),
+        "simulations",
+        "sin_tin",
+        "TiN-RefIdx-labo.csv",
+    )
 )
 
 POLARIZATIONS = ["xx", "yx", "xy", "yy", "pp", "sp", "ps", "ss"]
@@ -146,7 +148,7 @@ def setup(args, sim_dtype=torch.complex64, geo_dtype=None):
         layer_eps = mask * eps_metal + (1 - mask) * eps_air
         sim.add_layer(thickness=dz, eps=layer_eps)
 
-    sim.solve_global_smatrix()
+    sim.solve()
     return sim
 
 

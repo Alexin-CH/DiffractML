@@ -34,6 +34,21 @@ and differentiable). This project fixes several bugs in the archived v0–v5 cod
 All scripts run with Python ≥ 3.10 and PyTorch (CUDA optional; `--device cuda`
 works if available).
 
+### TORCWA dependency
+
+The RCWA engine is consumed as the `torcwa` package (the TORCWA submodule was
+renamed from `src` to `torcwa`). Install it editable so code edits are picked
+up immediately without reinstalling:
+
+```bash
+pip install -e TORCWA/   # from the repository root; editable install
+```
+
+The package then imports as `import torcwa`. The mlai conda environment used
+during development already has this install.
+
+### Workflow
+
 ```bash
 # 1. Generate a dataset (nh=8, disc=48, 300 samples ~ a few minutes on CPU)
 python src/generate.py --n-samples 300 --nh 8 --discretization 48 \
