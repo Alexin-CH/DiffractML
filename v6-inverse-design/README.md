@@ -12,7 +12,10 @@ The RCWA solver is [TORCWA](https://github.com/Alexin-CH/TORCWA) (GPU-accelerate
 - **`dataset.py`** — `SinTinDataset`: `(wl, ang, amp, per)` → `[R_xx, T_xx, R_yy, T_yy]`, z-scored.
 - **`models.py`** — `SurrogateMLP` (and `SurrogateEnsemble`).
 - **`train.py`** — trains the surrogate forward model.
-- **`design.py`** — inverse design: gradient descent **through the surrogate** (milliseconds) then refinement **through the RCWA solver** (seconds). The period gradient is physically weak in TORCWA (lattice/k-vectors are detached floats), so refinement optimizes `amp` only; `per` is supplied by the surrogate.
+- **`design.py`** — inverse design:
+  1. Gradient descent **through the surrogate** (milliseconds).  
+  2. Refinement **through the RCWA solver** (seconds).  
+  The period gradient is physically weak in TORCWA (lattice/k-vectors are detached floats), so refinement optimizes `amp` only; `per` is supplied by the surrogate.
 
 ## Usage
 
