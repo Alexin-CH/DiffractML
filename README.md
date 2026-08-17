@@ -2,32 +2,43 @@
 
 ***!! Still under research & development !!***
 
-This repository contains code and resources for modeling the optical response of diffractive structures using Rigorous Coupled-Wave Analysis (RCWA). The project aims to integrate advanced computational techniques and MAchine Learning (ML) algorithms to enhance the accuracy and predictive capabilities of optical simulations.
+Modeling the optical response of diffractive structures using Rigorous
+Coupled-Wave Analysis (RCWA) integrated with Machine Learning. The RCWA engine
+is [TORCWA](https://github.com/Alexin-CH/TORCWA) (GPU-accelerated and
+differentiable).
 
 ## Table of Contents
 
-- [Key Features](#key-features)
+- [Active project](#active-project)
+- [Archive](#archive)
 - [Getting Started](#getting-started)
-- [Usage](#usage)
 
-## Key Features
+## Active project
 
-- **RCWA Implementation**: High-performance simulations of light diffraction for various diffractive structures. Thanks to the [TORCWA](https://github.com/Alexin-CH/TORCWA) package.
-- **ML Integration**: Incorporates machine learning techniques to optimize models and improve efficiency.
-- **Visualization Tools**: Generates intuitive plots for analyzing optical responses.
+- **`v6-inverse-design/`** — physics-informed inverse design of a 1D
+  sine-corrugated TiN grating. A neural surrogate predicts the RCWA response,
+  then inverse design recovers the grating geometry `(amp, per)` that matches a
+  target response spectrum, with optional refinement through the differentiable
+  RCWA solver. See its [README](v6-inverse-design/README.md).
+
+## Archive
+
+- **`archive/`** — earlier research versions (v0–v5): hyper-network weight
+  prediction, order-convergence extrapolation, etc. Kept for reference; their
+  data pipelines contained bugs (e.g. all 32 S-parameter columns identical) that
+  are fixed in `v6-inverse-design`.
 
 ## Getting Started
 
 ### Prerequisites
 
-Ensure you have the following installed:
-
-- Python 3.7 or higher
+- Python 3.10 or higher
+- PyTorch (CUDA optional)
 - Required libraries (listed in `requirements.txt`)
 
 ### Installation
 
-Clone the repository:
+Clone the repository (including submodules):
 
 ```bash
 git clone --recurse-submodules https://github.com/Alexin-CH/DiffractML.git
@@ -41,4 +52,9 @@ make
 
 ## Usage
 
-This repository includes many projects and scripts. Main scripts are located in the `src` directory.
+See `v6-inverse-design/README.md` for the current project workflow
+(generate → train → design). Regression tests:
+
+```bash
+cd v6-inverse-design && python -m pytest tests/
+```
