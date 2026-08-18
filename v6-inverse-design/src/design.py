@@ -22,6 +22,29 @@ CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
 AMP_RANGE = (20.0, 100.0)
 PER_RANGE = (200.0, 5000.0)
 
+# RCWA solve crossover: below this problem size CPU is faster (kernel/transfer
+# overhead dominates), above it CUDA wins.  Estimated from a CPU-vs-CUDA
+# sweep: GPU is ~3x faster at nh>=8/disc>=48, ~2x slower below.
+CUDA_MIN_NH = 8
+CUDA_MIN_DISC = 48
+
+
+def pick_device(nh, discretization, requested="auto"):
+    """Choose the fastest device for an RCWA problem size.
+
+    ``requested``: 'cpu', 'cuda', or 'auto' (hybrid: CUDA only where it is
+    faster).  Returns 'cuda' iff CUDA is available and the problem is large
+    enough for GPU speedup to overcome launch overhead.
+    """
+    if requested == "cpu":
+        return "cpu"
+    if requested == "cuda":
+        return "cuda" if torch.cuda.is_available() else "cpu"
+    if not torch.cuda.is_available():
+        return "cpu"
+    use_cuda = nh >= CUDA_MIN_NH and discretization >= CUDA_MIN_DISC
+    return "cuda" if use_cuda else "cpu"
+
 
 class SurrogateDesign:
     """Optimize (amp, per) through the surrogate to match a target response."""
@@ -62,8 +85,8 @@ class SurrogateDesign:
         problem well-posed.  ``targets`` shape (n_wl, 4) for [R_xx, T_xx,
         R_yy, T_yy].
         """
-        wl_grid = torch.tensor(wl_grid, dtype=torch.float32)
-        targets = torch.tensor(targets, dtype=torch.float32)
+        wl_grid = torch.as_tensor(wl_grid, dtype=torch.float32, device="cpu")
+        targets = torch.as_tensor(targets, dtype=torch.float32, device="cpu")
         best = None
         for r in range(n_restarts):
             amp = torch.rand(1) * (AMP_RANGE[1] - AMP_RANGE[0]) + AMP_RANGE[0]
@@ -98,26 +121,38 @@ class SurrogateDesign:
 
 def design_with_torcwa_spectrum(wl_grid, ang, targets, amp_init, per_init,
                                 nh=8, discretization=48, iters=60, lr=5.0,
-                                device="cpu", edge_sharpness=50.0):
-    """Refine ``amp`` against a target spectrum through RCWA gradients.
+                                device="cpu", edge_sharpness=50.0,
+                                refine_per=False, per_lr=1.0):
+    """Refine ``amp`` (and optionally ``per``) against a target spectrum
+    through RCWA gradients.
 
-    ``targets`` shape (n_wl, 4).  ``per`` is fixed (its gradient is weak in
-    TORCWA).  Returns refined (amp, per).
+    ``targets`` shape (n_wl, 4).  ``per`` is fixed by default: with the
+    detached-lattice setup its RCWA gradient is physically near-zero.  With
+    ``refine_per=True`` the lattice/grid are built from the period tensor
+    (``tensor_lattice``) so ``per`` also receives a physically meaningful
+    gradient.  Returns refined (amp, per).
     """
-    amp = torch.tensor(float(amp_init), requires_grad=True)
-    targets = torch.tensor(targets).to(torch.float32)
+    amp = torch.tensor(float(amp_init), device=device, requires_grad=True)
+    per = torch.tensor(float(per_init), device=device, requires_grad=True)
+    targets = torch.tensor(targets, device=device).to(torch.float32)
 
-    opt = torch.optim.Adam([amp], lr=lr)
+    if refine_per:
+        opt = torch.optim.Adam(
+            [{"params": [amp], "lr": lr}, {"params": [per], "lr": per_lr}]
+        )
+    else:
+        opt = torch.optim.Adam([amp], lr=lr)
+
     for i in range(iters):
         opt.zero_grad()
         preds = []
         for wl in wl_grid:
             args = SinTinArgs(
                 wl=wl, ang=ang, nh=nh, discretization=discretization,
-                sin_amplitude=amp, sin_period=per_init, uni_layer_h=30.0,
+                sin_amplitude=amp, sin_period=per, uni_layer_h=30.0,
                 edge_sharpness=edge_sharpness, device=device,
             )
-            sim = setup(args)
+            sim = setup(args, tensor_lattice=refine_per)
             eff = get_power_efficiencies(sim)
             preds.append(torch.stack([eff[c] for c in EFF_COLS]))
         pred = torch.stack(preds)
@@ -127,9 +162,13 @@ def design_with_torcwa_spectrum(wl_grid, ang, targets, amp_init, per_init,
         loss.backward()
         if amp.grad is None or not torch.isfinite(amp.grad):
             break
+        if refine_per and (per.grad is None or not torch.isfinite(per.grad)):
+            break
         opt.step()
         amp.data.clamp_(30.0, 80.0)
-    return amp.item(), per_init
+        if refine_per:
+            per.data.clamp_(*PER_RANGE)
+    return amp.item(), per.item()
 
 
 def design_with_torcwa(wl, ang, target, amp_init, per_init, nh=8,
@@ -177,7 +216,8 @@ def parse():
     p = argparse.ArgumentParser(description="Inverse design for sine TiN grating")
     p.add_argument("--surrogate", type=str, default=os.path.join(CURRENT_DIR, "..", "model_pt", "surrogate.pt"))
     p.add_argument("--wl-grid", type=float, nargs="+", default=None,
-                   help="wavelength grid (nm). Default: 800..1600")
+                   help="wavelength grid (nm). Default (cuda): 800..1600 step 100; "
+                        "(cpu): [800, 1100, 1400, 1600]")
     p.add_argument("--ang", type=float, default=0.0, help="incidence angle (deg)")
     p.add_argument("--target-amp", type=float, default=45.0,
                    help="ground-truth amplitude for self-check target generation")
@@ -185,30 +225,60 @@ def parse():
                    help="ground-truth period for self-check target generation")
     p.add_argument("--target-col", type=str, default="R_xx",
                    help="efficiency column to match (R_xx, T_xx, R_yy, T_yy)")
-    p.add_argument("--nh", type=int, default=8)
-    p.add_argument("--discretization", type=int, default=48)
-    p.add_argument("--iters", type=int, default=60)
-    p.add_argument("--device", type=str, default="cpu")
+    p.add_argument("--nh", type=int, default=None,
+                   help="Fourier order. Default (cuda): 8; (cpu): 5")
+    p.add_argument("--discretization", type=int, default=None,
+                   help="spatial grid per axis. Default (cuda): 48; (cpu): 32")
+    p.add_argument("--iters", type=int, default=None,
+                   help="RCWA refinement iterations. Default (cuda): 60; (cpu): 25")
+    p.add_argument("--device", type=str, default="auto",
+                   help="device for RCWA solves: 'cpu', 'cuda', or 'auto' "
+                        "(hybrid — CUDA only where it beats CPU)")
+    p.add_argument("--refine-per", action="store_true",
+                   help="also refine the period through RCWA gradients "
+                        "(requires tensor-lattice setup)")
+    p.add_argument("--per-lr", type=float, default=1.0,
+                   help="learning rate for the period during RCWA refinement")
     return p.parse_args()
 
 
 if __name__ == "__main__":
     a = parse()
-    wl_grid = a.wl_grid or list(range(800, 1600, 100))
+
+    # Resolve problem size first: on 'auto', default to the full RCWA setup
+    # (nh=8/disc=48) only when CUDA is available to run it fast; otherwise
+    # fall back to the lighter CPU setup.  Explicit --nh/--disc always win.
+    use_gpu = pick_device(
+        a.nh if a.nh is not None else CUDA_MIN_NH,
+        a.discretization if a.discretization is not None else CUDA_MIN_DISC,
+        a.device,
+    ) == "cuda"
+    heavy = (a.device == "cuda") or (a.device == "auto" and use_gpu)
+
+    wl_grid = a.wl_grid or (
+        list(range(800, 1600, 100)) if heavy else [800.0, 1100.0, 1400.0, 1600.0]
+    )
+    nh = a.nh if a.nh is not None else (8 if heavy else 5)
+    discretization = a.discretization if a.discretization is not None else (
+        48 if heavy else 32
+    )
+    iters = a.iters if a.iters is not None else (60 if heavy else 25)
+    rwa_device = pick_device(nh, discretization, a.device)
     col_idx = EFF_COLS.index(a.target_col)
 
     # Ground-truth target spectrum computed with TORCWA (the "spec" we want).
     from simulation import SinTinArgs as _SA, setup as _setup, get_power_efficiencies as _gpe
     targets = []
     for wl in wl_grid:
-        args = _SA(wl=wl, ang=a.ang, nh=a.nh, discretization=a.discretization,
+        args = _SA(wl=wl, ang=a.ang, nh=nh, discretization=discretization,
                    sin_amplitude=a.target_amp, sin_period=a.target_per,
-                   uni_layer_h=30.0, device=a.device)
+                   uni_layer_h=30.0, device=rwa_device)
         sim = _setup(args)
         eff = _gpe(sim)
         targets.append([eff[c].item() for c in EFF_COLS])
     targets = torch.tensor(targets)
     print(f"Ground truth structure: amp={a.target_amp} nm, per={a.target_per} nm")
+    print(f"RCWA device: {rwa_device} (requested: {a.device})")
     print(f"Target {a.target_col} spectrum: "
           f"{[round(float(t),4) for t in targets[:, col_idx].tolist()]}")
 
@@ -221,7 +291,8 @@ if __name__ == "__main__":
 
     print(f"[torcwa]    refining amp through RCWA gradients ...")
     amp2, per2 = design_with_torcwa_spectrum(
-        wl_grid, a.ang, targets, amp, per, nh=a.nh,
-        discretization=a.discretization, iters=a.iters, device=a.device,
+        wl_grid, a.ang, targets, amp, per, nh=nh,
+        discretization=discretization, iters=iters, device=rwa_device,
+        refine_per=a.refine_per, per_lr=a.per_lr,
     )
     print(f"[torcwa]    refined amp={amp2:.1f} nm (truth {a.target_amp:.1f}), per={per2:.1f} (truth {a.target_per:.1f})")

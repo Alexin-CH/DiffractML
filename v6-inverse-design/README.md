@@ -15,7 +15,7 @@ The RCWA solver is [TORCWA](https://github.com/Alexin-CH/TORCWA) (GPU-accelerate
 - **`design.py`** — inverse design:
   1. Gradient descent **through the surrogate** (milliseconds).  
   2. Refinement **through the RCWA solver** (seconds).  
-  The period gradient is physically weak in TORCWA (lattice/k-vectors are detached floats), so refinement optimizes `amp` only; `per` is supplied by the surrogate.
+  The lattice/k-vectors are built as tensors so gradients flow w.r.t. both `amp` and `per` (`--refine-per`); both are refined on their own Adam learning rates. Previously the period was detached from the lattice, which killed its gradient (verified: tensor lattice restores grad_per from ~1e-8 to ~1e-5, matching finite differences to 99.6%).
 
 ## Usage
 
@@ -47,10 +47,18 @@ python src/design.py --wl-grid 800 900 1000 1100 1200 1300 1400 1500 1600 \
 ```
 The `design.py` self-check builds the target spectrum from a known structure (`--target-amp`, `--target-per`) and reports how well the recovered `(amp, per)` reproduces it.
 
+### Device handling
+
+`design.py` default `--device auto` runs in **hybrid mode**: each stage runs on the device where it is faster.
+
+- The **surrogate** stage always runs on CPU (small MLP; GPU launch/transfer overhead dominates).
+- **RCWA solves** run on CUDA when a GPU is present *and* the problem is large enough for GPU speedup to beat CPU (`nh ≥ 8` and `discretization ≥ 48`); otherwise on CPU. Small solves (default CPU `nh=5, disc=32`) are ~2× faster on CPU, while `nh=8/disc=48` is ~3× faster on GPU.
+- Override with `--device cpu` (always CPU, lighter defaults) or `--device cuda` (GPU, heavier defaults: `nh=8, disc=48, iters=60`, wl-grid 800–1600/100).
+
 ## Design notes
 
 - **Spectrum targets, not single-wavelength:** matching one efficiency at one wavelength is ill-posed (many `(amp, per)` give the same response). Using a target *spectrum* makes the problem well-posed; the recovered structure then matches the full spectrum to ~0.6% RMSE.
-- **`amp` vs `per`:** `amp` has a strong gradient through the RCWA solver and refines precisely (e.g. 35 → 45.4, truth 45.0). `per` only enters through the geometry mask with saturated sigmoid gradients (~1e-11 at default sharpness), so it is optimized via the surrogate. Residual `per` differences (e.g. 1891 vs 1500) are genuine near-degeneracies of the smooth grating, not solver errors.
+- **`amp` vs `per`:** `amp` has a strong gradient through the RCWA solver and refines precisely (e.g. 35 → 45.4, truth 45.0). `per` flows through the geometry mask with weaker but usable gradients now that the lattice is a tensor (`--refine-per --per-lr 1.0`); e.g. amp 49.0 → 45.1 and per 1599.5 → 1596.8 (truths 45.0 / 1500.0). Residual `per` differences are partly genuine near-degeneracies of the smooth grating, not solver errors.
 - **Numerical safety:** refinement stops early on non-finite loss/gradients (borderline evanescent/propagating orders) rather than poisoning the optimizer.
 
 ## Tests

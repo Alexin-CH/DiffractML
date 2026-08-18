@@ -85,17 +85,26 @@ def load_tin_refractive_index(wl_nm, dataset="labo"):
     return n, k
 
 
-def setup(args, sim_dtype=torch.complex64, geo_dtype=None):
+def setup(args, sim_dtype=torch.complex64, geo_dtype=None, tensor_lattice=False):
     """Build and solve the RCWA simulation for the sine TiN structure.
 
     Returns ``(sim, perm_map)`` following the original API.
+
+    With ``tensor_lattice=True`` the period tensor flows into the spatial grid
+    (``rcwa_geo.Lx``) and the lattice k-vectors (``Gx_norm``, ``kx_norm``, ...)
+    instead of a detached float, so autograd can backpropagate through ``per``
+    all the way to the S-parameters (physically meaningful period gradient).
     """
     device = args.device
     if geo_dtype is None:
         geo_dtype = args.wl.dtype
 
-    lx = args.sin_period.detach().item()
-    ly = lx
+    if tensor_lattice:
+        lx = args.sin_period
+        ly = lx
+    else:
+        lx = args.sin_period.detach().item()
+        ly = lx
 
     torcwa.rcwa_geo.dtype = geo_dtype
     torcwa.rcwa_geo.device = device
@@ -186,14 +195,26 @@ def _sim_orders(sim):
     ]
 
 
-def _propagating_orders(sim, layer_eps=1.5):
-    """Orders that carry power in the output layer (real kz)."""
+def _propagating_orders(sim, layer_eps=None):
+    """Orders that carry power in the output layer (real kz).
+
+    ``layer_eps`` defaults to the actual output-layer permittivity
+    ``sim.eps_out * sim.mu_out``.  An order is kept only if it is propagating
+    in *both* the input and output layers: an order that is evanescent in the
+    input layer has zero numerator ``kz`` in the power normalization, which
+    makes the gradient of ``sqrt(kz_num / kz_ref)`` diverge (0 in the
+    denominator of ``1/(2*sqrt(0))``) even though its forward power is zero.
+    """
+    if layer_eps is None:
+        layer_eps = sim.eps_out * sim.mu_out
     orders = _sim_orders(sim)
     m = sim._matching_indices(torch.tensor(orders))
-    kz = torch.sqrt(
-        layer_eps - sim.Kx_norm_dn[m] ** 2 - sim.Ky_norm_dn[m] ** 2
-    )
-    prop = (torch.real(kz) > 1e-6) & (torch.abs(torch.imag(kz)) < 1e-6)
+
+    def _propagating(eps_mu):
+        kz = torch.sqrt(eps_mu - sim.Kx_norm_dn[m] ** 2 - sim.Ky_norm_dn[m] ** 2)
+        return (torch.real(kz) > 1e-6) & (torch.abs(torch.imag(kz)) < 1e-6)
+
+    prop = _propagating(sim.eps_in * sim.mu_in) & _propagating(layer_eps)
     return [o for o, p in zip(orders, prop.tolist()) if p]
 
 
