@@ -119,10 +119,26 @@ class SurrogateDesign:
         return torch.nn.functional.mse_loss(pred, targets)
 
 
+def _spectrum_prediction(wl_grid, ang, nh, discretization, amp, per, device,
+                         edge_sharpness=50.0, tensor_lattice=False):
+    """Predicted (n_wl, 4) efficiencies for one (amp, per) — differentiable."""
+    preds = []
+    for wl in wl_grid:
+        args = SinTinArgs(
+            wl=wl, ang=ang, nh=nh, discretization=discretization,
+            sin_amplitude=amp, sin_period=per, uni_layer_h=30.0,
+            edge_sharpness=edge_sharpness, device=device,
+        )
+        sim = setup(args, tensor_lattice=tensor_lattice)
+        eff = get_power_efficiencies(sim)
+        preds.append(torch.stack([eff[c] for c in EFF_COLS]))
+    return torch.stack(preds)
+
+
 def design_with_torcwa_spectrum(wl_grid, ang, targets, amp_init, per_init,
                                 nh=8, discretization=48, iters=60, lr=5.0,
                                 device="cpu", edge_sharpness=50.0,
-                                refine_per=False, per_lr=1.0):
+                                refine_per=False, per_lr=1.0, optimizer="adam"):
     """Refine ``amp`` (and optionally ``per``) against a target spectrum
     through RCWA gradients.
 
@@ -130,57 +146,65 @@ def design_with_torcwa_spectrum(wl_grid, ang, targets, amp_init, per_init,
     detached-lattice setup its RCWA gradient is physically near-zero.  With
     ``refine_per=True`` the lattice/grid are built from the period tensor
     (``tensor_lattice``) so ``per`` also receives a physically meaningful
-    gradient.  Returns refined (amp, per).
+    gradient.  ``optimizer`` selects 'adam' (default) or 'lbfgs'.
+    Returns refined (amp, per) and the final spectrum loss.
     """
     amp = torch.tensor(float(amp_init), device=device, requires_grad=True)
     per = torch.tensor(float(per_init), device=device, requires_grad=True)
     targets = torch.tensor(targets, device=device).to(torch.float32)
 
+    params = [amp]
     if refine_per:
-        opt = torch.optim.Adam(
-            [{"params": [amp], "lr": lr}, {"params": [per], "lr": per_lr}]
-        )
+        params.append(per)
+    if optimizer == "lbfgs":
+        opt = torch.optim.LBFGS(params, lr=lr, max_iter=1,
+                                history_size=10, line_search_fn="strong_wolfe")
     else:
-        opt = torch.optim.Adam([amp], lr=lr)
+        lrs = [lr, per_lr] if refine_per else [lr]
+        opt = torch.optim.Adam(
+            [{"params": [p], "lr": l} for p, l in zip(params, lrs)]
+        )
 
-    for i in range(iters):
+    def closure():
         opt.zero_grad()
-        preds = []
-        for wl in wl_grid:
-            args = SinTinArgs(
-                wl=wl, ang=ang, nh=nh, discretization=discretization,
-                sin_amplitude=amp, sin_period=per, uni_layer_h=30.0,
-                edge_sharpness=edge_sharpness, device=device,
-            )
-            sim = setup(args, tensor_lattice=refine_per)
-            eff = get_power_efficiencies(sim)
-            preds.append(torch.stack([eff[c] for c in EFF_COLS]))
-        pred = torch.stack(preds)
+        pred = _spectrum_prediction(
+            wl_grid, ang, nh, discretization, amp, per, device,
+            edge_sharpness=edge_sharpness, tensor_lattice=refine_per)
         loss = torch.nn.functional.mse_loss(pred, targets)
-        if not torch.isfinite(loss):
-            break
         loss.backward()
-        if amp.grad is None or not torch.isfinite(amp.grad):
-            break
-        if refine_per and (per.grad is None or not torch.isfinite(per.grad)):
-            break
-        opt.step()
-        amp.data.clamp_(30.0, 80.0)
-        if refine_per:
-            per.data.clamp_(*PER_RANGE)
+        return loss
+
+    if optimizer == "lbfgs":
+        for _ in range(iters):
+            opt.step(closure)
+            with torch.no_grad():
+                amp.data.clamp_(30.0, 80.0)
+                if refine_per:
+                    per.data.clamp_(*PER_RANGE)
+    else:
+        for i in range(iters):
+            opt.zero_grad()
+            pred = _spectrum_prediction(
+                wl_grid, ang, nh, discretization, amp, per, device,
+                edge_sharpness=edge_sharpness, tensor_lattice=refine_per)
+            loss = torch.nn.functional.mse_loss(pred, targets)
+            if not torch.isfinite(loss):
+                break
+            loss.backward()
+            if amp.grad is None or not torch.isfinite(amp.grad):
+                break
+            if refine_per and (per.grad is None or not torch.isfinite(per.grad)):
+                break
+            opt.step()
+            amp.data.clamp_(30.0, 80.0)
+            if refine_per:
+                per.data.clamp_(*PER_RANGE)
 
     with torch.no_grad():
-        preds = []
-        for wl in wl_grid:
-            args = SinTinArgs(
-                wl=wl, ang=ang, nh=nh, discretization=discretization,
-                sin_amplitude=amp, sin_period=per, uni_layer_h=30.0,
-                edge_sharpness=edge_sharpness, device=device,
-            )
-            sim = setup(args, tensor_lattice=refine_per)
-            eff = get_power_efficiencies(sim)
-            preds.append(torch.stack([eff[c] for c in EFF_COLS]))
-        final_loss = torch.nn.functional.mse_loss(torch.stack(preds), targets)
+        pred = _spectrum_prediction(
+            wl_grid, ang, nh, discretization, amp, per, device,
+            edge_sharpness=edge_sharpness, tensor_lattice=refine_per)
+        final_loss = torch.nn.functional.mse_loss(pred, targets)
     return amp.item(), per.item(), float(final_loss)
 
 
@@ -262,6 +286,8 @@ def parse():
                         "(requires tensor-lattice setup)")
     p.add_argument("--per-lr", type=float, default=1.0,
                    help="learning rate for the period during RCWA refinement")
+    p.add_argument("--optimizer", type=str, default="adam", choices=["adam", "lbfgs"],
+                   help="RCWA refinement optimizer")
     return p.parse_args()
 
 
@@ -319,7 +345,7 @@ if __name__ == "__main__":
             amp2, per2, loss = design_with_torcwa_spectrum(
                 wl_grid, a.ang, targets, amp0, per0, nh=nh,
                 discretization=discretization, iters=iters, device=rwa_device,
-                refine_per=a.refine_per, per_lr=a.per_lr,
+refine_per=a.refine_per, per_lr=a.per_lr, optimizer=a.optimizer,
             )
             print(f"  start amp={amp0:.0f}, per={per0:.0f} -> "
                   f"amp={amp2:.1f}, per={per2:.1f}  (loss={loss:.5f})")
