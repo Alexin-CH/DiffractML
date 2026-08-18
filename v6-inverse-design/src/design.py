@@ -168,7 +168,20 @@ def design_with_torcwa_spectrum(wl_grid, ang, targets, amp_init, per_init,
         amp.data.clamp_(30.0, 80.0)
         if refine_per:
             per.data.clamp_(*PER_RANGE)
-    return amp.item(), per.item()
+
+    with torch.no_grad():
+        preds = []
+        for wl in wl_grid:
+            args = SinTinArgs(
+                wl=wl, ang=ang, nh=nh, discretization=discretization,
+                sin_amplitude=amp, sin_period=per, uni_layer_h=30.0,
+                edge_sharpness=edge_sharpness, device=device,
+            )
+            sim = setup(args, tensor_lattice=refine_per)
+            eff = get_power_efficiencies(sim)
+            preds.append(torch.stack([eff[c] for c in EFF_COLS]))
+        final_loss = torch.nn.functional.mse_loss(torch.stack(preds), targets)
+    return amp.item(), per.item(), float(final_loss)
 
 
 def design_with_torcwa(wl, ang, target, amp_init, per_init, nh=8,
@@ -225,6 +238,16 @@ def parse():
                    help="ground-truth period for self-check target generation")
     p.add_argument("--target-col", type=str, default="R_xx",
                    help="efficiency column to match (R_xx, T_xx, R_yy, T_yy)")
+    p.add_argument("--no-surrogate", action="store_true",
+                   help="solver-only mode: skip the surrogate stage and "
+                        "optimize directly through TORCWA from --init-amp/--init-per "
+                        "or random restarts (--restarts)")
+    p.add_argument("--init-amp", type=float, default=None,
+                   help="solver-only starting amplitude (nm); default: random restart")
+    p.add_argument("--init-per", type=float, default=None,
+                   help="solver-only starting period (nm); default: random restart")
+    p.add_argument("--restarts", type=int, default=8,
+                   help="solver-only random restarts to try (keeps the best)")
     p.add_argument("--nh", type=int, default=None,
                    help="Fourier order. Default (cuda): 8; (cpu): 5")
     p.add_argument("--discretization", type=int, default=None,
@@ -282,17 +305,41 @@ if __name__ == "__main__":
     print(f"Target {a.target_col} spectrum: "
           f"{[round(float(t),4) for t in targets[:, col_idx].tolist()]}")
 
-    sd = SurrogateDesign(a.surrogate)
-    amp, per, loss = sd.design(wl_grid, a.ang, targets)
-    print(f"[surrogate] designed amp={amp:.1f} nm, per={per:.1f} nm  (loss={loss:.5f})")
-    pred = sd._predict_spectrum(wl_grid, a.ang, amp, per).detach()
-    print(f"[surrogate] predicted {a.target_col} spectrum: "
-          f"{[round(float(x),4) for x in pred[:, col_idx].tolist()]}")
+    if a.no_surrogate:
+        if a.init_amp is not None or a.init_per is not None:
+            starts = [(a.init_amp or 50.0, a.init_per or 2000.0)]
+        else:
+            starts = [(amp, per) for amp, per in zip(
+                torch.rand(a.restarts).mul(AMP_RANGE[1] - AMP_RANGE[0]).add(AMP_RANGE[0]).tolist(),
+                torch.rand(a.restarts).mul(PER_RANGE[1] - PER_RANGE[0]).add(PER_RANGE[0]).tolist(),
+            )]
+        print(f"[solver-only] {len(starts)} starting point(s) through RCWA gradients ...")
+        best = None
+        for amp0, per0 in starts:
+            amp2, per2, loss = design_with_torcwa_spectrum(
+                wl_grid, a.ang, targets, amp0, per0, nh=nh,
+                discretization=discretization, iters=iters, device=rwa_device,
+                refine_per=a.refine_per, per_lr=a.per_lr,
+            )
+            print(f"  start amp={amp0:.0f}, per={per0:.0f} -> "
+                  f"amp={amp2:.1f}, per={per2:.1f}  (loss={loss:.5f})")
+            if best is None or loss < best[0]:
+                best = (loss, amp2, per2)
+        _, amp2, per2 = best
+        print(f"[solver-only] best amp={amp2:.1f} nm (truth {a.target_amp:.1f}), "
+              f"per={per2:.1f} (truth {a.target_per:.1f})")
+    else:
+        sd = SurrogateDesign(a.surrogate)
+        amp, per, loss = sd.design(wl_grid, a.ang, targets)
+        print(f"[surrogate] designed amp={amp:.1f} nm, per={per:.1f} nm  (loss={loss:.5f})")
+        pred = sd._predict_spectrum(wl_grid, a.ang, amp, per).detach()
+        print(f"[surrogate] predicted {a.target_col} spectrum: "
+              f"{[round(float(x),4) for x in pred[:, col_idx].tolist()]}")
 
-    print(f"[torcwa]    refining amp through RCWA gradients ...")
-    amp2, per2 = design_with_torcwa_spectrum(
-        wl_grid, a.ang, targets, amp, per, nh=nh,
-        discretization=discretization, iters=iters, device=rwa_device,
-        refine_per=a.refine_per, per_lr=a.per_lr,
-    )
-    print(f"[torcwa]    refined amp={amp2:.1f} nm (truth {a.target_amp:.1f}), per={per2:.1f} (truth {a.target_per:.1f})")
+        print(f"[torcwa]    refining amp through RCWA gradients ...")
+        amp2, per2, _ = design_with_torcwa_spectrum(
+            wl_grid, a.ang, targets, amp, per, nh=nh,
+            discretization=discretization, iters=iters, device=rwa_device,
+            refine_per=a.refine_per, per_lr=a.per_lr,
+        )
+        print(f"[torcwa]    refined amp={amp2:.1f} nm (truth {a.target_amp:.1f}), per={per2:.1f} (truth {a.target_per:.1f})")

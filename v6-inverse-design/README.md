@@ -47,6 +47,18 @@ python src/design.py --wl-grid 800 900 1000 1100 1200 1300 1400 1500 1600 \
 ```
 The `design.py` self-check builds the target spectrum from a known structure (`--target-amp`, `--target-per`) and reports how well the recovered `(amp, per)` reproduces it.
 
+To optimize directly through the solver, skipping the surrogate:
+
+```bash
+# from a known starting point
+python src/design.py --no-surrogate --init-amp 50 --init-per 2000 --iters 60 --refine-per
+
+# or from random restarts (keeps the best)
+python src/design.py --no-surrogate --restarts 8 --iters 30 --refine-per
+```
+
+In solver-only mode the gradient descent converges `amp` tightly, but `per` lands in different shallow local minima across restarts — the smooth-grating spectrum is nearly degenerate in `per`, which is exactly what the surrogate regularizes away. So the surrogate stage is recommended as the default; solver-only is a useful validation and data point.
+
 ### Device handling
 
 `design.py` default `--device auto` runs in **hybrid mode**: each stage runs on the device where it is faster.
