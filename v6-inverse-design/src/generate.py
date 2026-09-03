@@ -2,7 +2,7 @@
 
 Generates samples over the sine TiN structure parameter space using TORCWA,
 correctly extracting per-polarization S-parameters and total power
-efficiencies (fixes the archive/v5 bug where all 32 S-parameter columns were
+efficiencies (fixes the archives/v5 bug where all 32 S-parameter columns were
 identical).
 
 Output: a CSV with columns

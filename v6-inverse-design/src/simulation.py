@@ -1,7 +1,7 @@
 """Correct, GPU-capable, differentiable wrapper around the TORCWA RCWA solver
 for the 1D sine-corrugated TiN structure.
 
-Fixes the bugs found in the internship code (archive/v5-hybrid-order):
+Fixes the bugs found in the internship code (archives/v5-hybrid-order):
   * ``S_parameters`` -> ``s_parameters`` (TORCWA method name)
   * direction / port / polarization loop variables were hardcoded (all 32
     S-parameter columns ended up identical)

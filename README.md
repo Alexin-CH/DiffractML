@@ -10,7 +10,7 @@ differentiable).
 ## Table of Contents
 
 - [Active project](#active-project)
-- [Archive](#archive)
+- [Archives](#archives)
 - [Getting Started](#getting-started)
 
 ## Active project
@@ -21,9 +21,9 @@ differentiable).
   target response spectrum, with optional refinement through the differentiable
   RCWA solver. See its [README](v6-inverse-design/README.md).
 
-## Archive
+## Archives
 
-- **`archive/`** — earlier research versions (v0–v5): hyper-network weight
+- **`archives/`** — earlier research versions (v0–v5): hyper-network weight
   prediction, order-convergence extrapolation, etc. Kept for reference; their
   data pipelines contained bugs (e.g. all 32 S-parameter columns identical) that
   are fixed in `v6-inverse-design`.
