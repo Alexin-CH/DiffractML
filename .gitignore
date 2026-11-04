@@ -12,6 +12,10 @@ data-outputs/
 *.pt
 *.json
 
+# Keep small, source-of-truth metadata for v7 (references, TiN fit cache)
+!v7-finite-grating/data/*.json
+!v7-finite-grating/reports/**/*.json
+
 *.local*
 
 *.log

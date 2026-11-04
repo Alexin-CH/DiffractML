@@ -1,0 +1,11 @@
+name: meep-v7
+channels:
+  - conda-forge
+dependencies:
+  - python=3.12
+  - pymeep
+  - numpy
+  - scipy
+  - pandas
+  - matplotlib
+  - pytest
