@@ -15,6 +15,14 @@ differentiable).
 
 ## Active project
 
+- **`v7-finite-grating/`** — the project's main aim: approximate the full-wave
+  (MEEP FDTD) response of a *finite, defective* 1D grating with fast periodic
+  RCWA plus a learned correction. M0 (validated FDTD ground-truth simulator)
+  and M1 (padded-supercell RCWA benchmark) are complete. See its
+  [README](v7-finite-grating/README.md).
+
+## Previous work
+
 - **`v6-inverse-design/`** — physics-informed inverse design of a 1D
   sine-corrugated TiN grating. A neural surrogate predicts the RCWA response,
   then inverse design recovers the grating geometry `(amp, per)` that matches a
