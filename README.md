@@ -17,8 +17,9 @@ differentiable).
 
 - **`v7-finite-grating/`** — the project's main aim: approximate the full-wave
   (MEEP FDTD) response of a *finite, defective* 1D grating with fast periodic
-  RCWA plus a learned correction. M0 (validated FDTD ground-truth simulator)
-  and M1 (padded-supercell RCWA benchmark) are complete. See its
+  RCWA plus a learned correction. M0 (validated FDTD ground-truth simulator),
+  M1 (padded-supercell RCWA benchmark) and M2 (learned spectral correction,
+  ~85% lower absorption error on held-out geometries) are complete. See its
   [README](v7-finite-grating/README.md).
 
 ## Previous work

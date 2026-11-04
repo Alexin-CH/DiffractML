@@ -179,8 +179,49 @@ Best configuration for this structure: padding 0.5 µm, `nh=64`, RMSE(A)=0.0124
 (~1.2% of the absorption signal). This is the raw-RCWA error floor that the
 learned correction (M2) must beat.
 
-## Next (M2)
+## M2: learned spectral correction (the hybrid model)
 
-Train the hybrid model on paired (RCWA supercell, MEEP) spectra: first a
-residual correction on the RCWA spectrum, then the pre-solver encoder. Split by
-geometry, and report accuracy vs runtime against both raw RCWA and MEEP.
+The hybrid model is a residual correction on top of the de-embedded fast RCWA
+spectrum. For each (geometry, λ):
+
+- **features** — geometry, defect summaries (`mean/std/min` ridge scale,
+  number and position of a missing ridge), λ and λ/period, and the fast RCWA
+  `(R, T, A)`;
+- **target** — residual `[MEEP_R − RCWA_R, MEEP_T − RCWA_T]`;
+- `A = 1 − R − T` is derived, so the corrected spectrum automatically sums to 1.
+
+Workflow (same two-env split as M1):
+
+```bash
+# 1. MEEP references for 24 seeded geometries  (meep-v7 env)
+python scripts/generate_m2_references.py --n-specs 24 --resolution 105 \
+    --wl-range 0.7 1.15 --n-freq 16 --pol s
+
+# 2. paired dataset (fast RCWA + de-embedding)  (mlai env)
+python scripts/build_m2_dataset.py --n-specs 24 --pol s --device cpu
+
+# 3. train + evaluate, split by geometry  (mlai env)
+python scripts/train_m2.py --epochs 800 --hidden 64 --depth 3 \
+    --weight-decay 1e-3 --patience 150 --tag m2
+```
+
+### Result (`reports/m2/report_m2.md`)
+
+24 geometries (18 train / 6 held-out by geometry), 16 wavelengths each:
+
+| channel | raw RCWA | corrected | improvement |
+|---|---:|---:|---:|
+| RMSE R | 0.0141 ± 0.0023 | 0.0027 ± 0.0014 | +81% |
+| RMSE T | 0.0094 ± 0.0026 | 0.0040 ± 0.0016 | +58% |
+| RMSE A | 0.0131 ± 0.0039 | 0.0019 ± 0.0010 | +85% |
+
+The correction generalises across unseen geometries and cuts the absorption
+error by ~85% — the hybrid hypothesis holds for this family.
+
+## Next
+
+- Add the pre-solver **encoder** (compact geometry description → solver grid)
+  for out-of-distribution designs, with a larger geometry dataset.
+- Extend to p-polarisation, oblique incidence, and resonance-rich structures
+  to exercise the resonance-position/linewidth metrics.
+- Inverse design through the corrected hybrid model.
