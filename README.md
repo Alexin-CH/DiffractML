@@ -19,7 +19,9 @@ differentiable).
   (MEEP FDTD) response of a *finite, defective* 1D grating with fast periodic
   RCWA plus a learned correction. M0 (validated FDTD ground-truth simulator),
   M1 (padded-supercell RCWA benchmark) and M2 (learned spectral correction,
-  ~85% lower absorption error on held-out geometries) are complete. See its
+  ~85% lower absorption error on held-out geometries) are complete; Experiment 1
+  shows an ideal unit cell at `nh=8` plus the correction matches the padded
+  supercell at ~2.9× lower solve cost. See its
   [README](v7-finite-grating/README.md).
 
 ## Previous work

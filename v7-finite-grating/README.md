@@ -11,9 +11,6 @@ geometry ──▶ NN encoder ──▶ TORCWA (periodic supercell) ──▶ NN
                                               MEEP FDTD (finite, PML)
 ```
 
-This directory is the **M0** deliverable: the FDTD ground-truth simulator and
-its validation. No ML yet — first we make the reference trustworthy.
-
 ## Why FDTD, and what "finite" means
 
 TORCWA is periodic in `x` (lattice) and finite in `z` (layered stack). A real
@@ -24,10 +21,7 @@ is whether that approximation converges to the true finite-structure spectrum
 as the padding grows.
 
 To answer it we need an independent full-wave reference on the **non-periodic**
-structure. MEEP (FDTD) with PML boundaries does exactly that. (The conversation
-that motivated the project called this the "FEM reference"; FDTD is the
-pragmatic open-source full-wave choice for finite aperiodic structures — it
-solves the same Maxwell problem without the unit-cell assumption.)
+structure. MEEP (FDTD) with PML boundaries does exactly that.
 
 `R(λ)` and `T(λ)` are **total power across a plane**: the power flux integrated
 over a plane above/below the structure, divided by the incident power measured
@@ -217,6 +211,30 @@ python scripts/train_m2.py --epochs 800 --hidden 64 --depth 3 \
 
 The correction generalises across unseen geometries and cuts the absorption
 error by ~85% — the hybrid hypothesis holds for this family.
+
+### Experiment 1 — is the padded supercell needed?
+
+Reusing the 24 MEEP references, the actual defective supercell baseline was
+compared with an **ideal unit cell** (one clean period, blind to defects):
+
+| subset | n | ideal RMSE(A) | supercell RMSE(A) |
+|---|---:|---:|---:|
+| all | 24 | 0.0235 | 0.0148 |
+| no missing ridge | 10 | **0.0062** | 0.0135 |
+| missing ridge | 14 | 0.0359 | **0.0157** |
+
+- For **jitter-only** gratings the ideal unit cell is *better* than the
+  `padding=1.0, nh=32` supercell (which is under-resolved).
+- For **missing-ridge** gratings the supercell wins, because the ideal unit
+  cell cannot see the defect at all.
+- Solve cost at equal `nh` is identical (13.47 vs 13.50 s), because RCWA cost
+  is set by `nh`/eigendecomposition, not supercell width.
+- **But the ideal cell converges at `nh=8`** (4.65 s) while the supercell needs
+  `nh=32` (13.5 s). After the M2 correction both reach the same absorption
+  accuracy (ideal 0.0018 vs supercell 0.0019): **~2.9× cheaper for the same
+  corrected absorption**, though the supercell keeps a small edge on R.
+
+Details: `reports/m2/experiment1_ideal_vs_supercell.md`.
 
 ## Next
 
