@@ -261,10 +261,40 @@ compared with an **ideal unit cell** (one clean period, blind to defects):
 
 Details: `reports/m2/experiment1_ideal_vs_supercell.md`.
 
+## Experiment 2: differentiable encoder (RCWA in the loop)
+
+Pipeline: `GratingSpec` → encoder (latent `z_geo` + effective amplitude/period)
+→ differentiable unit-cell RCWA (`nh=8`) → residual NN → loss, with gradients
+flowing back through TORCWA. `base`, `padding`, `sharpness`, `nh`, `nx`,
+`n_layers` are fixed.
+
+```bash
+# torch env
+python scripts/train_e2.py --epochs 25 --n-wl 8 --patience 6 --device cuda --tag e2
+python scripts/train_e2.py --epochs 25 --n-wl 8 --patience 6 --device cuda \
+    --tag e2_noenc --no-encoder
+```
+
+### Result (held-out, 6 geometries)
+
+| variant | RMSE R | RMSE T | RMSE A |
+|---|---:|---:|---:|
+| learned encoder | 0.0107 | 0.0118 | 0.0052 |
+| no-encoder ablation | **0.0067** | **0.0082** | 0.0053 |
+| fixed M2, ideal `nh=8` (E1) | 0.0041 | 0.0040 | **0.0018** |
+
+The differentiable loop works, but the learned encoder does **not** improve on
+the fixed-geometry residual yet: the no-encoder ablation is better on R/T at
+~33% lower cost. The amplitude gradient is reliable, but the period gradient is
+noisy and the 24-geometry set is small for a 16-d latent. Recommendation: keep
+the cheap ideal backbone + residual, freeze the encoder, and revisit with a
+larger dataset and an amplitude-only config.
+
+Details: `reports/m2/experiment2_encoder_vs_fixed.md`.
+
 ## Next
 
-- Add the pre-solver **encoder** (compact geometry description → solver grid)
-  for out-of-distribution designs, with a larger geometry dataset.
-- Extend to p-polarisation, oblique incidence, and resonance-rich structures
+- Scale the geometry dataset before re-attempting the latent encoder.
+- Extend to p-polarisation, oblique incidence, resonance-rich structures
   to exercise the resonance-position/linewidth metrics.
 - Inverse design through the corrected hybrid model.

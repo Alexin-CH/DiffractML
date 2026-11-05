@@ -78,3 +78,29 @@ def build_example(spec, wl, rcwa, meep):
     Y_abs = np.column_stack([meep["R"], meep["T"], meep["A"]]).astype(np.float32)
     RCWA_abs = np.column_stack([rcwa["R"], rcwa["T"], rcwa["A"]]).astype(np.float32)
     return X, Y_res, Y_abs, RCWA_abs
+
+
+# --------------------------------------------------------------------------- #
+# Experiment 2: compact geometry descriptors for the encoder
+# --------------------------------------------------------------------------- #
+GEOM_DESCRIPTOR_NAMES = [
+    "period_s", "amplitude_s", "base_s",
+    "mean_scale", "std_scale", "min_scale",
+    "n_missing", "missing_index_s",
+]
+
+
+def geometry_descriptors(spec: GratingSpec) -> np.ndarray:
+    """Scale-invariant 8-d description of a grating (for the E2 encoder)."""
+    scale = np.asarray(spec.ridge_scale, dtype=float)
+    miss = np.asarray(spec.missing, dtype=bool)
+    n_missing = int(miss.sum())
+    missing_index = (int(np.argmax(miss)) - N_RIDGES // 2) / max(1, N_RIDGES) \
+        if n_missing > 0 else -1.0
+    return np.asarray([
+        spec.period / 1.5,
+        spec.amplitude / 0.05,
+        spec.base_thickness / 0.03,
+        scale.mean(), scale.std(), scale.min(),
+        float(n_missing), missing_index,
+    ], dtype=np.float32)
