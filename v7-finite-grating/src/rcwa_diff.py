@@ -70,6 +70,7 @@ def solve_unit_cell(
     n_layers: int = 16,
     edge_sharpness=None,
     fill=None,
+    eps_scale=None,
     pol: str = "s",
     substrate_index: float = 1.5,
     device="cuda",
@@ -84,6 +85,9 @@ def solve_unit_cell(
     ``(0, 1]``: the TiN profile is windowed to a fraction ``fill`` of the
     period, leaving bare substrate elsewhere.  ``fill=1`` reproduces the full
     ideal cell up to a small (1-2 grid point) soft edge at the cell boundary.
+    ``eps_scale`` (optional) scales the TiN permittivity contrast,
+    ``ε_eff = 1 + eps_scale·(ε_TiN − 1)``: the effective-medium knob of
+    Experiment 4b.
     Returns ``(R, T)`` tensors.  ``pol="s"`` maps to y-polarised (TORCWA ``yy``).
     """
     import torch
@@ -132,6 +136,8 @@ def solve_unit_cell(
     )
     eps_tin = tin_epsilon_tensor(wl_um, tin_params=tin_params, device=device,
                                  dtype=torch.complex64)
+    if eps_scale is not None:
+        eps_tin = eps_air + eps_scale * (eps_tin - eps_air)
 
     wl_nm = float(wl_um) * 1000.0
     sim = torcwa.rcwa(

@@ -61,6 +61,8 @@ def parse(argv=None):
     p.add_argument("--tin-dataset", choices=["labo", "beliaev"], default="beliaev")
     p.add_argument("--device", default="cuda")
     p.add_argument("--out-dir", default=os.path.join(_HERE, "..", "reports", "m2", "e4a"))
+    p.add_argument("--eps-knob", action="store_true",
+                   help="add an effective TiN permittivity scale (E4b)")
     p.add_argument("--tag", default="oracle")
     return p.parse_args(argv)
 
@@ -90,16 +92,16 @@ def fit_oracle(spec, wl_all, y_all, tin_params, a):
     R_t = torch.tensor(y_all[fit_idx, 0], device=dev)
     T_t = torch.tensor(y_all[fit_idx, 1], device=dev)
 
-    inits = [(0.0, 0.0, 0.0, 2.0)]
+    inits = [(0.0, 0.0, 0.0, 2.0, 0.0)]
     if a.restarts > 1:
-        inits.append((math.log(1.15), math.log(1.30), 0.0, 0.0))
+        inits.append((math.log(1.15), math.log(1.30), 0.0, 0.0, 0.0))
     if a.restarts > 2:
-        inits.append((math.log(0.85), math.log(0.60), 0.0, 3.0))
+        inits.append((math.log(0.85), math.log(0.60), 0.0, 3.0, 0.0))
 
     candidates = []
-    for lp0, la0, lb0, uf0 in inits[: a.restarts]:
+    for lp0, la0, lb0, uf0, ue0 in inits[: a.restarts]:
         raw = [torch.tensor(v, device=dev, requires_grad=True)
-               for v in (lp0, la0, lb0, uf0)]
+               for v in (lp0, la0, lb0, uf0, ue0)]
         opt = torch.optim.Adam(raw, lr=a.lr)
         sched = torch.optim.lr_scheduler.CosineAnnealingLR(opt, a.iters)
         best_here = None
@@ -108,12 +110,14 @@ def fit_oracle(spec, wl_all, y_all, tin_params, a):
             amp = _constrained(raw[1], a0, *A_RANGE)
             base = _constrained(raw[2], b0, *B_RANGE)
             fill = F_RANGE[0] + (F_RANGE[1] - F_RANGE[0]) * torch.sigmoid(raw[3])
+            eps_scale = 1.0 + 0.6 * torch.tanh(raw[4]) if a.eps_knob else None
             loss = torch.zeros((), device=dev)
             for k, w in enumerate(wl_fit):
                 R, T = solve_unit_cell(
                     period, amp, base, w, nh=a.nh, nx=a.nx,
                     n_layers=a.n_layers, edge_sharpness=100.0, fill=fill,
-                    pol=a.pol, substrate_index=spec.substrate_index,
+                    eps_scale=eps_scale, pol=a.pol,
+                    substrate_index=spec.substrate_index,
                     device=a.device, tin_params=tin_params,
                     tin_dataset=a.tin_dataset,
                 )
@@ -125,6 +129,7 @@ def fit_oracle(spec, wl_all, y_all, tin_params, a):
                     best_here = ((
                         float(period.detach()), float(amp.detach()),
                         float(base.detach()), float(fill.detach()),
+                        float(eps_scale.detach()) if eps_scale is not None else 1.0,
                     ), float(loss.detach()))
             opt.zero_grad()
             loss.backward()
@@ -136,7 +141,7 @@ def fit_oracle(spec, wl_all, y_all, tin_params, a):
     # be worse than the baseline.  Selection is on the **absorption** spectrum
     # (the reported metric), not on (R, T): fitting R and T can trade off A.
     candidates.append(((float(spec.period), float(spec.amplitude),
-                        float(spec.base_thickness), 1.0), 0.0))
+                        float(spec.base_thickness), 1.0, 1.0), 0.0))
     best = None
     for params, fit_mse in candidates:
         r, t = evaluate(params, spec, wl_all, a, tin_params)
@@ -150,7 +155,7 @@ def fit_oracle(spec, wl_all, y_all, tin_params, a):
 def evaluate(params, spec, wl_all, a, tin_params):
     """Raw RCWA (R, T) at every wavelength for fixed effective parameters."""
     dev = torch.device(a.device)
-    period, amp, base, fill = params
+    period, amp, base, fill, eps_scale = params
     rr, tt = [], []
     with torch.no_grad():
         for w in wl_all:
@@ -159,7 +164,8 @@ def evaluate(params, spec, wl_all, a, tin_params):
                 torch.tensor(amp, device=dev),
                 torch.tensor(base, device=dev),
                 float(w), nh=a.nh, nx=a.nx, n_layers=a.n_layers,
-                edge_sharpness=100.0, fill=fill, pol=a.pol,
+                edge_sharpness=100.0, fill=fill, eps_scale=eps_scale,
+                pol=a.pol,
                 substrate_index=spec.substrate_index, device=a.device,
                 tin_params=tin_params, tin_dataset=a.tin_dataset,
             )
@@ -194,9 +200,11 @@ def plot(rows, path):
 
     gain = [r["rmse_ideal"] - r["rmse_oracle"] for r in rs]
     cols = ["#bf4520" if r["n_missing"] else "#4f5d75" for r in rs]
-    ax2.scatter([r["fill_eff"] for r in rs], gain, c=cols, s=18)
+    xkey = "eps_eff" if any(abs(r["eps_eff"] - 1.0) > 1e-3 for r in rs) \
+        else "fill_eff"
+    ax2.scatter([r[xkey] for r in rs], gain, c=cols, s=18)
     ax2.axhline(0.0, color="#2d3142", lw=0.8, ls=":")
-    ax2.set_xlabel("oracle effective fill")
+    ax2.set_xlabel(f"oracle effective {xkey.replace('_eff', '')}")
     ax2.set_ylabel(r"oracle gain over ideal  [RMSE$(A)$]")
     ax2.grid(alpha=0.25, lw=0.6)
 
@@ -255,6 +263,7 @@ def main(argv=None):
             "amplitude_eff": params[1],
             "base_eff": params[2],
             "fill_eff": params[3],
+            "eps_eff": params[4],
             "p_ratio": params[0] / float(spec.period),
             "a_ratio": params[1] / float(spec.amplitude),
             "b_ratio": params[2] / float(spec.base_thickness),
@@ -272,7 +281,8 @@ def main(argv=None):
         rows.append(row)
         print(f"[{k + 1}/{len(ids)}] spec {sid:03d} miss={miss} "
               f"p/p0={row['p_ratio']:.3f} a/a0={row['a_ratio']:.3f} "
-              f"b/b0={row['b_ratio']:.3f} fill={row['fill_eff']:.3f}  "
+              f"b/b0={row['b_ratio']:.3f} fill={row['fill_eff']:.3f} "
+              f"eps={row['eps_eff']:.3f}  "
               f"A ideal/oracle/super = {row['rmse_ideal']:.4f}/"
               f"{row['rmse_oracle']:.4f}/{row['rmse_super']:.4f}  "
               f"({time.time() - t0:.0f}s)", flush=True)
@@ -326,8 +336,8 @@ def main(argv=None):
             f"{s['rmse_super']['mean']:.4f} ± {s['rmse_super']['std']:.4f} | "
             f"{s['gain_vs_ideal']:+.4f} | {s['gap_to_super']:+.4f} |")
     lines += ["", "## Per geometry", "",
-              "| spec | miss | miss idx | p/p0 | a/a0 | b/b0 | fill | ideal | oracle | super |",
-              "|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|"]
+              "| spec | miss | miss idx | p/p0 | a/a0 | b/b0 | fill | eps | ideal | oracle | super |",
+              "|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|"]
     for r in rows:
         sp = make_spec(r["spec"])
         mi = int(np.argmax(np.asarray(sp.missing, dtype=bool))) \
@@ -336,6 +346,7 @@ def main(argv=None):
             f"| {r['spec']:03d} | {r['n_missing']} | {mi} | "
             f"{r['p_ratio']:.3f} | "
             f"{r['a_ratio']:.3f} | {r['b_ratio']:.3f} | {r['fill_eff']:.3f} | "
+            f"{r['eps_eff']:.3f} | "
             f"{r['rmse_ideal']:.4f} | {r['rmse_oracle']:.4f} | "
             f"{r['rmse_super']:.4f} |")
     lines.append("")
