@@ -107,6 +107,21 @@ pip install -e TORCWA/
 For a CUDA build of PyTorch, install `torch` following
 <https://pytorch.org/get-started/locally/> before the other requirements.
 
+**With the top-level Makefile (from the repository root):**
+
+```bash
+make setup                      # prints the same steps, runs nothing
+make env-rcwa                   # -> rcwa-v7
+conda activate rcwa-v7
+make torcwa                     # pip install -e TORCWA/
+make doctor                     # verify the active interpreter
+make test                       # run this suite
+```
+
+`make` uses the active environment's `python3`; `make references` is the only
+target that needs `meep-v7`. Override the interpreter with
+`make test PYTHON=/path/to/python` if you prefer not to activate.
+
 ## Usage
 
 Fit the TiN dispersion once (cached to `data/`):
