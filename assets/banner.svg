@@ -1,0 +1,79 @@
+<svg xmlns="http://www.w3.org/2000/svg"
+     width="1200" height="400" viewBox="0 0 1200 400"
+     role="img" aria-labelledby="title desc">
+  <title id="title">DiffractML</title>
+  <desc id="desc">Incoming wavefronts pass through a periodic grating and form diffracted beams.</desc>
+
+  <defs>
+    <linearGradient id="background" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#090f25"/>
+      <stop offset="1" stop-color="#17133b"/>
+    </linearGradient>
+
+    <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
+      <path d="M40 0H0V40" fill="none" stroke="#9ab5ff" stroke-opacity=".07"/>
+    </pattern>
+
+    <marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5"
+            markerWidth="6" markerHeight="6" orient="auto">
+      <path d="M0 0L10 5L0 10Z" fill="#a17aff"/>
+    </marker>
+
+    <marker id="cyanArrow" viewBox="0 0 10 10" refX="8" refY="5"
+            markerWidth="6" markerHeight="6" orient="auto">
+      <path d="M0 0L10 5L0 10Z" fill="#46e8ff"/>
+    </marker>
+  </defs>
+
+  <!-- Background -->
+  <rect width="1200" height="400" rx="24" fill="url(#background)"/>
+  <rect width="1200" height="400" rx="24" fill="url(#grid)"/>
+
+  <!-- Incoming plane wavefronts -->
+  <g stroke="#46e8ff" stroke-width="2.5" opacity=".8">
+    <path d="M700 135V265"/>
+    <path d="M740 135V265"/>
+    <path d="M780 135V265"/>
+    <path d="M820 135V265"/>
+  </g>
+
+  <!-- Periodic grating -->
+  <g fill="#b5a4ff">
+    <rect x="855" y="140" width="12" height="120" rx="3"/>
+    <rect x="877" y="140" width="12" height="120" rx="3"/>
+    <rect x="899" y="140" width="12" height="120" rx="3"/>
+    <rect x="921" y="140" width="12" height="120" rx="3"/>
+  </g>
+  <line x1="848" y1="270" x2="940" y2="270"
+        stroke="#a17aff" stroke-width="2" opacity=".55"/>
+
+  <!-- Diffracted orders -->
+  <g fill="none" stroke="#a17aff" stroke-width="2.5"
+     marker-end="url(#arrow)">
+    <path d="M933 200L1090 105"/>
+    <path d="M933 200L1110 155"/>
+    <path d="M933 200L1125 200"/>
+    <path d="M933 200L1110 245"/>
+    <path d="M933 200L1090 295"/>
+  </g>
+
+  <!-- Project title and subtitle -->
+  <text x="76" y="183"
+        font-family="Inter, ui-sans-serif, system-ui, sans-serif"
+        font-size="68" font-weight="750" letter-spacing="-2"
+        fill="#f4f7ff">Diffract<tspan fill="#62e5ff">ML</tspan></text>
+
+  <rect x="80" y="207" width="72" height="4" rx="2" fill="#62e5ff"/>
+
+  <text x="80" y="250"
+        font-family="Inter, ui-sans-serif, system-ui, sans-serif"
+        font-size="22" letter-spacing=".3" fill="#bdc9e8">
+    RCWA × Machine Learning for Photonic Design
+  </text>
+
+  <text x="80" y="292"
+        font-family="Inter, ui-sans-serif, system-ui, sans-serif"
+        font-size="14" letter-spacing="2.5" fill="#8291ba">
+    DIFFRACTION · COMPUTATION · DESIGN
+  </text>
+</svg>
