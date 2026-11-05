@@ -1,4 +1,4 @@
-# DiffractML
+![DiffractML banner](assets/banner.svg)
 
 Modeling the optical response of diffractive structures using Rigorous
 Coupled-Wave Analysis (RCWA) integrated with Machine Learning. The RCWA engine

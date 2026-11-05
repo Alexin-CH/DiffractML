@@ -42,6 +42,31 @@ def make_spec(idx: int) -> GratingSpec:
     )
 
 
+# --------------------------------------------------------------------------- #
+# Experiment 4d: Rayleigh-rich finite gratings (small period, many ridges)
+# --------------------------------------------------------------------------- #
+RESONANT_N_RIDGES = 10
+
+
+def make_resonant_spec(idx: int) -> GratingSpec:
+    """Small-period, 10-ridge grating whose Rayleigh anomalies fall in band.
+
+    With ``p in [0.4, 0.8] um`` and 30-60 deg incidence, ``p(1+sinθ)`` and
+    ``n_sub·p(1+sinθ)`` cross 0.7-1.15 um.  No missing ridge, so the anomaly
+    stays the dominant spectral feature.
+    """
+    rng = np.random.default_rng(5000 + int(idx))
+    return sample_grating_spec(
+        rng,
+        n_ridges=RESONANT_N_RIDGES,
+        period_range=(0.40, 0.80),
+        amplitude_range=(0.040, 0.060),
+        base_thickness=0.03,
+        jitter_std=0.1,
+        max_missing=0,
+    )
+
+
 def build_features(spec: GratingSpec, wl, rcwa_R, rcwa_T, rcwa_A) -> np.ndarray:
     """Feature matrix ``(n_wl, len(FEATURE_NAMES))`` for one grating."""
     wl = np.asarray(wl, dtype=np.float64)

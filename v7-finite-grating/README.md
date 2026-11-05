@@ -330,11 +330,85 @@ cell + residual. The differentiable solver stays, for inverse design.
 
 Details: `reports/experiments/E3-fair-encoder.md`.
 
+## Experiment 4a: does an equivalent periodic config exist?
+
+E3 could not separate "the encoder failed" from "no single period can represent
+a finite defective grating". E4a measures the ceiling directly: for each
+geometry, optimise a four-parameter effective unit cell — period, amplitude,
+base and **fill/duty**, the knob E2/E3 lacked — against MEEP, with no network.
+
+```bash
+python scripts/e4a_oracle_config.py \
+    --specs 0 3 5 9 13 15 19 22 --iters 14 --restarts 2 --n-fit-wl 5 \
+    --tag oracle_subset
+```
+
+### Result (8-geometry stratified subset, raw RMSE(A))
+
+| subset | n | ideal cell | oracle config | supercell |
+|---|---:|---:|---:|---:|
+| jitter only | 4 | 0.0063 | **0.0058** | 0.0135 |
+| missing ridge | 4 | 0.0351 | 0.0284 | **0.0198** |
+
+- **Jitter-only:** an equivalent periodic config exists and already beats the
+  padded supercell.
+- **Missing ridge:** only partially. The oracle closes ~19% on average, but
+  almost all of it is one geometry (0.0396 → 0.0184, matching the supercell);
+  the other three gain nothing. A localised hole is not representable by one
+  effective period.
+- The effective config is not unique, and an encoder can at best recover this
+  oracle — so encoder-only cannot close the missing-ridge gap. The natural next
+  step is a **learned low-order supercell / Fourier representation**, which can
+  encode the localised pattern while staying at `nh=8`.
+
+Details: `reports/experiments/E4a-oracle-config.md`.
+
+## Experiment 4b/4c: effective permittivity and low-order supercell
+
+E4b adds an effective TiN permittivity `ε_eff = 1 + s·(ε_TiN − 1)` to the
+single-period oracle; E4c lets a 24-control-point height profile play the same
+role inside a padded supercell at `nh=8`.
+
+### Result (raw RMSE(A); E4b over 8 geometries, E4c over 4 missing-ridge)
+
+| experiment | ideal | oracle | supercell |
+|---|---:|---:|---:|
+| 4b, missing ridge | 0.0351 | **0.0250** | 0.0198 |
+| 4b, jitter only | 0.0063 | 0.0063 | 0.0135 |
+| 4c, missing ridge | 0.0351 | 0.0406 | **0.0198** |
+
+- **Effective ε is a real gain.** Two of four missing-ridge geometries reach
+  `R/T ≈ 0.01/0.02`, matching the `nh=32` supercell; the optimum is
+  `ε_scale ≈ 1.3` (a more absorbing effective medium, compensating lost TiN).
+  The other two geometries remain non-representable.
+- **The low-order supercell is not a shortcut.** At equal `nh=8` an optimised
+  profile improves R/T 3–5× over the truncated true pattern, but stays ~3×
+  worse than `nh=32`. Its small A error at `nh=8` is a cancellation artefact;
+  judging low-order supercells on A alone is unsafe.
+
+Details: `reports/experiments/E4b-E4c-effective-lattice.md`.
+
+## Remote references for generalisation
+
+The p-pol / oblique / Rayleigh-rich datasets are specified by a manifest:
+
+```bash
+python scripts/reference_manifest.py --sets A B C
+# -> 11 jobs, 104 MEEP runs, ~3.5 h serial at res=140
+# writes reports/m2/remote_manifest.{sh,json}
+```
+
+Set A is p-pol at 0° for the 24 existing geometries; B is oblique
+(0/30/60°, s+p) on an 8-geometry subset; C is eight 10-ridge, 0.4–0.8 µm
+gratings at 30/60° (Rayleigh anomalies in band, no slab).
+
 ## Next
 
+- Train a residual model on the new p-pol / oblique references, with
+  `(λ, θ, pol)` as inputs and `(ΔR, ΔT)` outputs.
+- Use the effective-ε knob as an encoder target (`fill`, `ε_scale`) for the
+  missing-ridge class.
 - Inverse design through the differentiable solver (its well-conditioned
   amplitude gradient is the point of the RCWA-in-the-loop machinery).
-- Extend to p-polarisation, oblique incidence, and resonance-rich structures
-  to exercise the resonance-position/linewidth metrics.
 - Scale the geometry dataset with parallelised MEEP to test generalisation vs
   N on the proven ideal-cell + residual model.

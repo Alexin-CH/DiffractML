@@ -1,0 +1,129 @@
+{
+  "config": {
+    "data": "/home/alexin/Documents/Academic/Research/DiffractML/v7-finite-grating/scripts/../reports/m2/dataset_ideal_nh8.npz",
+    "super_data": "/home/alexin/Documents/Academic/Research/DiffractML/v7-finite-grating/scripts/../reports/m2/dataset.npz",
+    "specs": [
+      0,
+      5,
+      13,
+      22
+    ],
+    "controls": 24,
+    "iters": 12,
+    "restarts": 2,
+    "n_fit_wl": 5,
+    "lr": 0.1,
+    "nh": 8,
+    "nx": 256,
+    "n_layers": 40,
+    "pol": "s",
+    "tin_dataset": "beliaev",
+    "device": "cuda",
+    "out_dir": "/home/alexin/Documents/Academic/Research/DiffractML/v7-finite-grating/scripts/../reports/m2/e4c",
+    "tag": "oracle_missing"
+  },
+  "per_spec": [
+    {
+      "spec": 0,
+      "n_missing": 1,
+      "period": 1.3649700165825438,
+      "Lx": 8.824850082912718,
+      "rmse_ideal": 0.0357802019069097,
+      "rmse_super_nh8": 0.017278148538596237,
+      "rmse_oracle_nh8": 0.044400404710447504,
+      "rmse_super_nh32": 0.01820525786461519,
+      "R_ideal": 0.14268149031750021,
+      "T_ideal": 0.17803819578901844,
+      "R_super_nh8": 0.15195414304097643,
+      "T_super_nh8": 0.16620835393387018,
+      "R_oracle_nh8": 0.05274982031724051,
+      "T_oracle_nh8": 0.027137674737545556,
+      "R_super_nh32": 0.011014922304002736,
+      "T_super_nh32": 0.010630496089101889,
+      "profile_peak_um": 0.14557212591171265,
+      "profile_mean_um": 0.05913982540369034,
+      "full_mse_RT": 0.0035189969336619775
+    },
+    {
+      "spec": 5,
+      "n_missing": 1,
+      "period": 1.0575534211475257,
+      "Lx": 7.287767105737629,
+      "rmse_ideal": 0.03249771876640114,
+      "rmse_super_nh8": 0.015958681762253027,
+      "rmse_oracle_nh8": 0.04203843675888102,
+      "rmse_super_nh32": 0.021117626761979286,
+      "R_ideal": 0.1447230435996208,
+      "T_ideal": 0.1767726071445917,
+      "R_super_nh8": 0.1159257907212415,
+      "T_super_nh8": 0.11910870677950501,
+      "R_oracle_nh8": 0.03276399104726049,
+      "T_oracle_nh8": 0.025737467609860554,
+      "R_super_nh32": 0.011016143436785218,
+      "T_super_nh32": 0.012966187220030494,
+      "profile_peak_um": 0.16131141781806946,
+      "profile_mean_um": 0.06781827658414841,
+      "full_mse_RT": 0.001735896348313587
+    },
+    {
+      "spec": 13,
+      "n_missing": 1,
+      "period": 1.5561450407143314,
+      "Lx": 9.780725203571656,
+      "rmse_ideal": 0.0396200117046108,
+      "rmse_super_nh8": 0.005926817006919221,
+      "rmse_oracle_nh8": 0.03145324855860774,
+      "rmse_super_nh32": 0.018181808583774654,
+      "R_ideal": 0.13916549833631825,
+      "T_ideal": 0.17838422659787684,
+      "R_super_nh8": 0.07010308772614633,
+      "T_super_nh8": 0.07062959425214761,
+      "R_oracle_nh8": 0.018582742915687636,
+      "T_oracle_nh8": 0.020222227858779775,
+      "R_super_nh32": 0.012430891372644515,
+      "T_super_nh32": 0.010624517304950069,
+      "profile_peak_um": 0.09348836541175842,
+      "profile_mean_um": 0.052567075937986374,
+      "full_mse_RT": 0.0007542568338429478
+    },
+    {
+      "spec": 22,
+      "n_missing": 1,
+      "period": 1.0003686517970212,
+      "Lx": 7.001843258985106,
+      "rmse_ideal": 0.03251965468307618,
+      "rmse_super_nh8": 0.018940394554849693,
+      "rmse_oracle_nh8": 0.04455388479316498,
+      "rmse_super_nh32": 0.021605033168287595,
+      "R_ideal": 0.14613333628681235,
+      "T_ideal": 0.1780899092481339,
+      "R_super_nh8": 0.15434891542057128,
+      "T_super_nh8": 0.16476870526765622,
+      "R_oracle_nh8": 0.05754148991977683,
+      "T_oracle_nh8": 0.032991199554900895,
+      "R_super_nh32": 0.010434662623009188,
+      "T_super_nh32": 0.01449846108299522,
+      "profile_peak_um": 0.14227445423603058,
+      "profile_mean_um": 0.06447689235210419,
+      "full_mse_RT": 0.004399442310259072
+    }
+  ],
+  "summary": {
+    "rmse_ideal": [
+      0.03510439676524946,
+      0.002929298238960786
+    ],
+    "rmse_super_nh8": [
+      0.014526010465654545,
+      0.005075916814830796
+    ],
+    "rmse_oracle_nh8": [
+      0.04061149370527531,
+      0.005380704292647955
+    ],
+    "rmse_super_nh32": [
+      0.01977743159466418,
+      0.001593266583841343
+    ]
+  }
+}
