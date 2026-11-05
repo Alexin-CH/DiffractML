@@ -42,16 +42,7 @@ differentiable).
 
 ### Prerequisites
 
-- [Miniconda](https://docs.conda.io/en/latest/miniconda.html) or Anaconda, with
-  `conda` on your `PATH`. If it is installed in a non-standard place (e.g.
-  `~/Apps/miniconda3`), load it first:
-
-  ```bash
-  source ~/Apps/miniconda3/etc/profile.d/conda.sh
-  ```
-
-- `git` and a C/C++ toolchain (MEEP and TORCWA are compiled).
-- Optional: a CUDA GPU for RCWA training (CPU works, but is slower).
+- [Miniconda](https://docs.conda.io/en/latest/miniconda.html) or Anaconda.
 
 ### Installation
 
@@ -70,15 +61,20 @@ cd DiffractML
 # 1. RCWA / ML environment (needed for everything except MEEP references)
 conda env create -f v7-finite-grating/environment-rcwa.yml
 conda activate rcwa-v7
-pip install -e TORCWA/          # TORCWA is not on PyPI
+python -m pip install -e TORCWA/   # Used TORCWA is not on PyPI
 
-# 2. FDTD environment (only to regenerate the ground truth)
+# 2. FDTD environment (only to regenerate the ground-truth aka MEEP references)
 conda env create -f v7-finite-grating/environment.yml   # creates meep-v7
 
 # 3. verify
 make doctor                     # active interpreter and missing packages
 make test                       # the v7 test suite
 ```
+
+> **`error: externally-managed-environment`** means the shell used the *system*
+> pip, not the environment's. Activate `rcwa-v7` first, or call
+> `python -m pip …` / `make torcwa` so the env's pip is used. If the env has no
+> pip at all: `conda install -n rcwa-v7 -c conda-forge pip`.
 
 `make setup` prints these steps without running anything, and `make install`
 is an alias for it.

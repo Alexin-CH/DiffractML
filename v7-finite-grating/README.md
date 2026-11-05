@@ -93,15 +93,19 @@ conda activate meep-v7
 # RCWA/ML half — run from the repository root
 conda env create -f v7-finite-grating/environment-rcwa.yml
 conda activate rcwa-v7
-pip install -e TORCWA/
+python -m pip install -e TORCWA/
 ```
+
+If this prints `error: externally-managed-environment`, the shell used the
+system pip: make sure `rcwa-v7` is active (or call `python -m pip`), and install
+pip into the env with `conda install -n rcwa-v7 -c conda-forge pip` if needed.
 
 **Plain pip (RCWA/ML half), if you prefer a venv:**
 
 ```bash
 python -m venv .venv && source .venv/bin/activate
-pip install -r v7-finite-grating/requirements.txt
-pip install -e TORCWA/
+python -m pip install -r v7-finite-grating/requirements.txt
+python -m pip install -e TORCWA/
 ```
 
 For a CUDA build of PyTorch, install `torch` following

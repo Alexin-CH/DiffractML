@@ -56,7 +56,7 @@ help:
 setup:
 	@echo "1. conda env create -f $(V7)/environment-rcwa.yml"
 	@echo "2. conda activate rcwa-v7"
-	@echo "3. pip install -e TORCWA/"
+	@echo "3. python -m pip install -e TORCWA/"
 	@echo "4. conda env create -f $(V7)/environment.yml   # -> meep-v7, optional"
 	@echo "5. make doctor && make test"
 	@echo ""
@@ -79,6 +79,7 @@ doctor:
 mods = ['numpy', 'torch', 'torcwa', 'pytest', 'matplotlib']; \
 missing = [m for m in mods if u.find_spec(m) is None]; \
 print('python :', sys.executable); \
+print('pip    :', 'yes' if u.find_spec('pip') else 'MISSING -> conda install -n rcwa-v7 -c conda-forge pip'); \
 print('missing:', ', '.join(missing) if missing else 'none')"
 	@if $(PYTHON) -c "import importlib.util as u,sys; sys.exit(0 if u.find_spec('meep') else 1)"; then \
 		echo "meep   : available (this looks like meep-v7)"; \
