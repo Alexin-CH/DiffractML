@@ -330,8 +330,43 @@ cell + residual. The differentiable solver stays, for inverse design.
 
 Details: `reports/experiments/E3-fair-encoder.md`.
 
+## Experiment 4a: does an equivalent periodic config exist?
+
+E3 could not separate "the encoder failed" from "no single period can represent
+a finite defective grating". E4a measures the ceiling directly: for each
+geometry, optimise a four-parameter effective unit cell — period, amplitude,
+base and **fill/duty**, the knob E2/E3 lacked — against MEEP, with no network.
+
+```bash
+python scripts/e4a_oracle_config.py \
+    --specs 0 3 5 9 13 15 19 22 --iters 14 --restarts 2 --n-fit-wl 5 \
+    --tag oracle_subset
+```
+
+### Result (8-geometry stratified subset, raw RMSE(A))
+
+| subset | n | ideal cell | oracle config | supercell |
+|---|---:|---:|---:|---:|
+| jitter only | 4 | 0.0063 | **0.0058** | 0.0135 |
+| missing ridge | 4 | 0.0351 | 0.0284 | **0.0198** |
+
+- **Jitter-only:** an equivalent periodic config exists and already beats the
+  padded supercell.
+- **Missing ridge:** only partially. The oracle closes ~19% on average, but
+  almost all of it is one geometry (0.0396 → 0.0184, matching the supercell);
+  the other three gain nothing. A localised hole is not representable by one
+  effective period.
+- The effective config is not unique, and an encoder can at best recover this
+  oracle — so encoder-only cannot close the missing-ridge gap. The natural next
+  step is a **learned low-order supercell / Fourier representation**, which can
+  encode the localised pattern while staying at `nh=8`.
+
+Details: `reports/experiments/E4a-oracle-config.md`.
+
 ## Next
 
+- Learned low-order supercell (Fourier/permittivity encoder) at `nh=8`, to
+  beat the ideal cell on missing-ridge geometries without paying `nh=32`.
 - Inverse design through the differentiable solver (its well-conditioned
   amplitude gradient is the point of the RCWA-in-the-loop machinery).
 - Extend to p-polarisation, oblique incidence, and resonance-rich structures

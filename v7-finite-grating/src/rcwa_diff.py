@@ -69,6 +69,7 @@ def solve_unit_cell(
     nx: int = 200,
     n_layers: int = 16,
     edge_sharpness=None,
+    fill=None,
     pol: str = "s",
     substrate_index: float = 1.5,
     device="cuda",
@@ -78,9 +79,12 @@ def solve_unit_cell(
 ):
     """Differentiable R/T of one ideal period.
 
-    ``period_um``, ``amplitude_um`` and ``base_um`` may be tensors requiring
-    grad; ``edge_sharpness`` may also be a tensor.  Returns ``(R, T)`` tensors.
-    ``pol="s"`` maps to y-polarised (TORCWA ``yy``).
+    ``period_um``, ``amplitude_um``, ``base_um`` and ``edge_sharpness`` may be
+    tensors requiring grad.  ``fill`` (optional) is a duty-cycle fraction in
+    ``(0, 1]``: the TiN profile is windowed to a fraction ``fill`` of the
+    period, leaving bare substrate elsewhere.  ``fill=1`` reproduces the full
+    ideal cell up to a small (1-2 grid point) soft edge at the cell boundary.
+    Returns ``(R, T)`` tensors.  ``pol="s"`` maps to y-polarised (TORCWA ``yy``).
     """
     import torch
     import torcwa
@@ -113,6 +117,14 @@ def solve_unit_cell(
     h_nm = (
         base_um + amplitude_um * (1.0 + torch.sin(2.0 * math.pi * x_um / period_um))
     ) * 1000.0
+    if fill is not None:
+        # Duty-cycle window: TiN only inside |x| <= fill*period/2, with a
+        # 25 nm sigmoid edge.  The +3*edge offset keeps the window open at the
+        # cell boundary when fill=1, so the full ideal cell is recovered.
+        edge_um = 1.0 / 40.0
+        half_um = 0.5 * fill * period_um + 3.0 * edge_um
+        mask = torch.sigmoid((half_um - torch.abs(x_um)) / edge_um)
+        h_nm = h_nm * mask
 
     eps_air = torch.tensor(1.0 + 0.0j, dtype=torch.complex64, device=device)
     eps_sub = torch.tensor(
