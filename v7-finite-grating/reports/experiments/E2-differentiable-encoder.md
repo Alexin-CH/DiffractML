@@ -59,6 +59,13 @@ the encoder.
   amplitude-only config (drop the noisy period), and (3) a full-λ training
   budget so fixed and learned variants are compared at equal headroom.
 
+## Follow-up (Experiment 3)
+
+Experiment 3 ran exactly that follow-up: matched budget, loss and features,
+plus an amplitude-only config and a per-ridge encoder redesign. The encoder
+still did not beat the fixed-geometry residual at 6, 12 or 18 training
+geometries. See [`E3-fair-encoder.md`](E3-fair-encoder.md).
+
 ## Reproduce
 
 ```bash

@@ -297,9 +297,44 @@ larger dataset and an amplitude-only config.
 
 Details: `reports/m2/experiment2_encoder_vs_fixed.md`.
 
+## Experiment 3: fair encoder comparison and redesign
+
+E2 changed the training budget, loss and features between arms, so E3 holds all
+of them fixed and varies only the model: `fixed` (no encoder), `global` (the E2
+encoder) and `ridge` (a per-ridge DeepSets redesign). Same ideal-cell `nh=8`
+data, same 18/6 geometry split, same standardised-residual loss and schedule.
+
+```bash
+python scripts/run_e3_suite.py --mode fair --mode scaling \
+    --seeds 0 1 2 --n-train 6 12 18
+python scripts/run_e3_suite.py --mode report
+```
+
+### Result (held-out, 18 train geometries, mean over 3 seeds)
+
+| encoder | RMSE R | RMSE T | RMSE A | params |
+|---|---:|---:|---:|---:|
+| fixed | 0.0065 | 0.0072 | **0.0021** | 35 k |
+| global (E2) | 0.0055 | 0.0065 | 0.0024 | 57 k |
+| ridge (redesign) | 0.0053 | 0.0062 | **0.0021** | 90 k |
+
+The redesign recovers the fixed-model accuracy but does not beat it, and there
+is no data-efficiency gain either (at 6 training geometries all three arms are
+inside the seed spread). The reason is structural: the M2 features already
+describe the five-ridge geometry, and the residual can absorb any
+effective-geometry change, so the config is unidentifiable once the residual
+converges.
+
+**Decision:** stop the encoder thread for forward prediction; keep the ideal
+cell + residual. The differentiable solver stays, for inverse design.
+
+Details: `reports/experiments/E3-fair-encoder.md`.
+
 ## Next
 
-- Scale the geometry dataset before re-attempting the latent encoder.
-- Extend to p-polarisation, oblique incidence, resonance-rich structures
+- Inverse design through the differentiable solver (its well-conditioned
+  amplitude gradient is the point of the RCWA-in-the-loop machinery).
+- Extend to p-polarisation, oblique incidence, and resonance-rich structures
   to exercise the resonance-position/linewidth metrics.
-- Inverse design through the corrected hybrid model.
+- Scale the geometry dataset with parallelised MEEP to test generalisation vs
+  N on the proven ideal-cell + residual model.

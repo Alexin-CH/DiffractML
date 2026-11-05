@@ -19,3 +19,6 @@ data-outputs/
 *.local*
 
 *.log
+
+# E3: per-run outputs are reproducible; only the suite summary is tracked
+v7-finite-grating/reports/m2/e3/runs/
