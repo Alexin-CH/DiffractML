@@ -8,6 +8,7 @@ differentiable).
 ## Table of Contents
 
 - [Active project](#active-project)
+- [Previous work](#previous-work)
 - [Archives](#archives)
 - [Getting Started](#getting-started)
 
@@ -41,29 +42,59 @@ differentiable).
 
 ### Prerequisites
 
-- Python 3.10 or higher
-- PyTorch (CUDA optional)
-- Required libraries (listed in `requirements.txt`)
+- [Miniconda](https://docs.conda.io/en/latest/miniconda.html) or Anaconda.
 
 ### Installation
 
-Clone the repository (including submodules):
+The project uses **two conda environments**, because MEEP and the TORCWA/torch
+stack do not coexist cleanly:
+
+| environment | used for |
+|---|---|
+| `rcwa-v7` | RCWA, training, and every `make` target except `references` |
+| `meep-v7` | MEEP FDTD reference generation (`make references`) |
 
 ```bash
 git clone --recurse-submodules https://github.com/Alexin-CH/DiffractML.git
 cd DiffractML
+
+# 1. RCWA / ML environment (needed for everything except MEEP references)
+conda env create -f v7-finite-grating/environment-rcwa.yml
+conda activate rcwa-v7
+python -m pip install -e TORCWA/   # Used TORCWA is not on PyPI
+
+# 2. FDTD environment (only to regenerate the ground-truth aka MEEP references)
+conda env create -f v7-finite-grating/environment.yml   # creates meep-v7
+
+# 3. verify
+make doctor                     # active interpreter and missing packages
+make test                       # the v7 test suite
 ```
 
-Install the required dependencies:
-``` bash
-make
-```
+> **`error: externally-managed-environment`** means the shell used the *system*
+> pip, not the environment's. Activate `rcwa-v7` first, or call
+> `python -m pip …` / `make torcwa` so the env's pip is used. If the env has no
+> pip at all: `conda install -n rcwa-v7 -c conda-forge pip`.
 
-## Usage
+`make setup` prints these steps without running anything, and `make install`
+is an alias for it.
 
-See `v6-inverse-design/README.md` for the current project workflow
-(generate → train → design). Regression tests:
+### Makefile
 
-```bash
-cd v6-inverse-design && python -m pytest tests/
-```
+Each target is run in an activated environment. `PYTHON` defaults to `python3`
+of that environment and can be overridden (`make test PYTHON=/path/to/python`).
+
+| target | environment | what it does |
+|---|---|---|
+| `make doctor` | any | report the interpreter and missing packages |
+| `make env-rcwa` / `env-meep` | any | create the conda environments |
+| `make torcwa` | `rcwa-v7` | `pip install -e TORCWA/` into the active env |
+| `make test` | `rcwa-v7` | run `v7-finite-grating/tests` |
+| `make e3` / `e3-scale` | `rcwa-v7` | encoder ladder / sample-efficiency curve |
+| `make e4a` / `e4b` / `e4c` | `rcwa-v7` | oracle experiments |
+| `make manifest` | `rcwa-v7` | emit the remote MEEP job list |
+| `make references` | `meep-v7` | run that job list (104 MEEP runs) |
+
+The v7-specific requirements live in
+[`v7-finite-grating/requirements.txt`](v7-finite-grating/requirements.txt); the
+root `requirements.txt` is kept for the legacy pip-only path.
