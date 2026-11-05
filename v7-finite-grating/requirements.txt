@@ -1,0 +1,13 @@
+# RCWA / machine-learning half of v7 (M1, M2, Experiment 1/2).
+#
+# TORCWA is not on PyPI; install it editable from the repository root:
+#     pip install -e TORCWA/
+#
+# For a CUDA build of PyTorch, install torch following
+# https://pytorch.org/get-started/locally/ before this file.
+torch
+numpy
+scipy
+pandas
+matplotlib
+pytest

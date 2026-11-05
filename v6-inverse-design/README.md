@@ -29,7 +29,9 @@ The RCWA engine is consumed as the `torcwa` package (the TORCWA submodule was re
 pip install -e TORCWA/   # from the repository root; editable install
 ```
 
-The package then imports as `import torcwa`. The mlai conda environment used during development already has this install.
+The package then imports as `import torcwa`. Install it editable in whichever
+environment you use for training/design (`pip install -e TORCWA/` from the
+repository root).
 
 ### Workflow
 

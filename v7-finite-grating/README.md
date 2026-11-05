@@ -21,7 +21,7 @@ is whether that approximation converges to the true finite-structure spectrum
 as the padding grows.
 
 To answer it we need an independent full-wave reference on the **non-periodic**
-structure. MEEP (FDTD) with PML boundaries does exactly that.
+structure. [MEEP](https://github.com/NanoComp/meep) (FDTD) with PML boundaries does exactly that.
 
 `R(λ)` and `T(λ)` are **total power across a plane**: the power flux integrated
 over a plane above/below the structure, divided by the incident power measured
@@ -45,37 +45,62 @@ reproduce (sum over all propagating diffraction orders).
 - `src/metrics.py` — de-embedding (`A=(1−R−T)·Lx/W`), spectral RMSE, resonance
   position / linewidth matching.
 - `src/benchmark.py` — reference I/O, RCWA sweep, comparison and reporting.
+- `src/rcwa_diff.py` — differentiable ideal-unit-cell RCWA (Experiment 2).
+- `src/models_e2.py` — shared geometry encoder (`z_geo` + config head) and the
+  residual correction head.
 - `src/fresnel.py` — analytic planar-interface R/T, used to validate the
   source/flux machinery.
-- `tests/` — geometry, dispersion-fit, Fresnel, energy, metrics and RCWA tests.
+- `tests/` — geometry, dispersion-fit, Fresnel, energy, metrics, RCWA and E2 tests.
 - `scripts/validate_m0.py` — end-to-end M0 validation with a pass/fail summary.
 - `scripts/make_reference.py` — generate a MEEP reference (MEEP env).
 - `scripts/run_benchmark.py` — run the RCWA sweep vs a reference (torch env).
+- `scripts/benchmark_ideal_vs_supercell.py` — Experiment 1 comparison and
+  ideal-backbone dataset export.
+- `scripts/train_e2.py` — Experiment 2 end-to-end encoder → RCWA → residual.
+
+## Diagrams
+
+Self-contained workflow diagrams live in [`diagrams/`](diagrams/):
+
+- [M0/M1 pipeline](diagrams/workflow-m0-m1.html)
+- [M2 learned correction](diagrams/workflow-m2.html)
+- [Experiment 2 training loop](diagrams/workflow-e2.html)
 
 ## Environment
 
 Two environments are needed because MEEP and the TORCWA/torch stack do not
-coexist cleanly:
+coexist cleanly. Ready-to-use configs are provided:
 
-| half | env | packages |
+| half | conda env | config |
 |---|---|---|
-| FDTD reference (`make_reference.py`, M0) | `meep-v7` | pymeep, numpy, scipy |
-| RCWA baseline (`run_benchmark.py`) | `mlai` | torch, torcwa (editable) |
+| FDTD reference (M0) | `meep-v7` | [`environment.yml`](environment.yml) |
+| RCWA / ML (M1, M2, E1, E2) | `rcwa-v7` | [`environment-rcwa.yml`](environment-rcwa.yml) / [`requirements.txt`](requirements.txt) |
 
-MEEP is distributed via conda (not pip) and needs a dedicated environment; do
-**not** install it into the RCWA `mlai` env.
+MEEP is distributed via conda (not pip) and needs its own environment.
 
-```bash
-~/Apps/miniconda3/bin/conda env create -f v7-finite-grating/environment.yml
-~/Apps/miniconda3/bin/conda activate meep-v7
-```
-
-If you prefer to create it manually:
+**Conda (both halves):**
 
 ```bash
-~/Apps/miniconda3/bin/conda create -n meep-v7 -c conda-forge \
-    python=3.12 pymeep scipy numpy pandas matplotlib pytest
+# FDTD half
+conda env create -f v7-finite-grating/environment.yml
+conda activate meep-v7
+
+# RCWA/ML half — run from the repository root
+conda env create -f v7-finite-grating/environment-rcwa.yml
+conda activate rcwa-v7
+pip install -e TORCWA/
 ```
+
+**Plain pip (RCWA/ML half), if you prefer a venv:**
+
+```bash
+python -m venv .venv && source .venv/bin/activate
+pip install -r v7-finite-grating/requirements.txt
+pip install -e TORCWA/
+```
+
+For a CUDA build of PyTorch, install `torch` following
+<https://pytorch.org/get-started/locally/> before the other requirements.
 
 ## Usage
 
@@ -140,7 +165,7 @@ python scripts/make_reference.py \
     --wl-range 0.7 1.1 --n-freq 10 --resolution 140 --pol s \
     --pad 1.5 --out reports/reference/grating6_defects
 
-# 2. RCWA sweep + report  (mlai env)
+# 2. RCWA sweep + report  (rcwa-v7 env)
 python scripts/run_benchmark.py \
     --reference reports/reference/grating6_defects --pol s \
     --padding 0.5 1.0 2.0 4.0 --nh 8 16 32 64 \
@@ -191,10 +216,10 @@ Workflow (same two-env split as M1):
 python scripts/generate_m2_references.py --n-specs 24 --resolution 105 \
     --wl-range 0.7 1.15 --n-freq 16 --pol s
 
-# 2. paired dataset (fast RCWA + de-embedding)  (mlai env)
+# 2. paired dataset (fast RCWA + de-embedding)  (rcwa-v7 env)
 python scripts/build_m2_dataset.py --n-specs 24 --pol s --device cpu
 
-# 3. train + evaluate, split by geometry  (mlai env)
+# 3. train + evaluate, split by geometry  (rcwa-v7 env)
 python scripts/train_m2.py --epochs 800 --hidden 64 --depth 3 \
     --weight-decay 1e-3 --patience 150 --tag m2
 ```
