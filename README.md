@@ -1,7 +1,5 @@
 # DiffractML
 
-***!! Still under research & development !!***
-
 Modeling the optical response of diffractive structures using Rigorous
 Coupled-Wave Analysis (RCWA) integrated with Machine Learning. The RCWA engine
 is [TORCWA](https://github.com/Alexin-CH/TORCWA) (GPU-accelerated and
@@ -14,6 +12,17 @@ differentiable).
 - [Getting Started](#getting-started)
 
 ## Active project
+
+- **`v7-finite-grating/`** — the project's main aim: approximate the full-wave
+  (MEEP FDTD) response of a *finite, defective* 1D grating with fast periodic
+  RCWA plus a learned correction. M0 (validated FDTD ground-truth simulator),
+  M1 (padded-supercell RCWA benchmark) and M2 (learned spectral correction,
+  ~85% lower absorption error on held-out geometries) are complete; Experiment 1
+  shows an ideal unit cell at `nh=8` plus the correction matches the padded
+  supercell at ~2.9× lower solve cost. See its
+  [README](v7-finite-grating/README.md).
+
+## Previous work
 
 - **`v6-inverse-design/`** — physics-informed inverse design of a 1D
   sine-corrugated TiN grating. A neural surrogate predicts the RCWA response,

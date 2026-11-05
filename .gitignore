@@ -12,6 +12,13 @@ data-outputs/
 *.pt
 *.json
 
+# Keep small, source-of-truth metadata for v7 (references, TiN fit cache)
+!v7-finite-grating/data/*.json
+!v7-finite-grating/reports/**/*.json
+
 *.local*
 
 *.log
+
+# E3: per-run outputs are reproducible; only the suite summary is tracked
+v7-finite-grating/reports/m2/e3/runs/

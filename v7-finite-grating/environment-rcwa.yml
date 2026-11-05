@@ -1,0 +1,16 @@
+name: rcwa-v7
+channels:
+  - conda-forge
+dependencies:
+  - python=3.12
+  - pytorch
+  - numpy
+  - scipy
+  - pandas
+  - matplotlib
+  - pytest
+
+# After creating the environment, install the RCWA engine editable from the
+# repository root:  pip install -e TORCWA/
+# For a CUDA build of PyTorch, install torch via pip following
+# https://pytorch.org/get-started/locally/ instead of the conda `pytorch`.
