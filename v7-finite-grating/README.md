@@ -66,6 +66,11 @@ Self-contained workflow diagrams live in [`diagrams/`](diagrams/):
 - [M2 learned correction](diagrams/workflow-m2.html)
 - [Experiment 2 training loop](diagrams/workflow-e2.html)
 
+## Reports
+
+Consolidated, self-contained reports for each experiment (M0, M1, M2, E1, E2)
+live in [`reports/experiments/`](reports/experiments/).
+
 ## Environment
 
 Two environments are needed because MEEP and the TORCWA/torch stack do not
