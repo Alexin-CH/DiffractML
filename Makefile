@@ -61,7 +61,7 @@ setup:
 	@echo "5. make doctor && make test"
 	@echo ""
 	@echo "If 'conda' is not on PATH, source it first, e.g."
-	@echo "  source ~/Apps/miniconda3/etc/profile.d/conda.sh"
+	@echo "  source .../miniconda3/etc/profile.d/conda.sh"
 
 install: setup
 
@@ -75,19 +75,20 @@ torcwa:
 	$(PYTHON) -m pip install -e TORCWA/
 
 doctor:
+	@echo "[DOCTOR] Recap:"
 	@$(PYTHON) -c "import sys, importlib.util as u; \
-mods = ['numpy', 'torch', 'torcwa', 'pytest', 'matplotlib']; \
-missing = [m for m in mods if u.find_spec(m) is None]; \
-print('python :', sys.executable); \
-print('pip    :', 'yes' if u.find_spec('pip') else 'MISSING -> conda install -n rcwa-v7 -c conda-forge pip'); \
-print('missing:', ', '.join(missing) if missing else 'none')"
+	mods = ['numpy', 'torch', 'torcwa', 'pytest', 'matplotlib']; \
+	missing = [m for m in mods if u.find_spec(m) is None]; \
+	print('python :', sys.executable); \
+	print('pip    :', 'yes' if u.find_spec('pip') else 'MISSING -> conda install -n rcwa-v7 -c conda-forge pip'); \
+	print('missing:', ', '.join(missing) if missing else 'none')"
 	@if $(PYTHON) -c "import importlib.util as u,sys; sys.exit(0 if u.find_spec('meep') else 1)"; then \
 		echo "meep   : available (this looks like meep-v7)"; \
 	else \
-		echo "meep   : not available (activate meep-v7 for 'make references')"; \
+		echo "meep   : not available in this venv (activate meep-v7 for 'make references')"; \
 	fi
 	@echo ""
-	@echo "rcwa-v7 needs numpy, torch, torcwa, pytest, matplotlib"
+	@echo "(rcwa-v7 needs numpy, torch, torcwa, pytest, matplotlib)"
 	@echo "if anything is missing:  conda activate rcwa-v7 && make torcwa"
 
 # --------------------------------------------------------------------------- #
