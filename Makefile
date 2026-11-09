@@ -21,7 +21,7 @@ V7         = v7-finite-grating
 .DEFAULT_GOAL := help
 
 .PHONY: help setup install env-rcwa env-meep torcwa doctor test \
-        e3 e3-scale e4a e4b e4c manifest references clean
+        e3 e3-scale e4a e4b e4c manifest references dataset validate-oblique clean
 
 help:
 	@echo "DiffractML"
@@ -44,6 +44,10 @@ help:
 	@echo "Ground truth  [meep-v7]:"
 	@echo "  make manifest     emit the remote MEEP reference manifest"
 	@echo "  make references   run the emitted manifest"
+	@echo ""
+	@echo "After the references land  [rcwa-v7]:"
+	@echo "  make dataset      build the multi-(pol, angle) dataset"
+	@echo "  make validate-oblique  check the 30 deg de-embedding vs MEEP"
 	@echo ""
 	@echo "  make clean        remove __pycache__ and pytest caches"
 	@echo ""
@@ -129,7 +133,22 @@ manifest:
 	cd $(V7) && $(PYTHON) scripts/reference_manifest.py --sets A B C
 
 references:
-	cd $(V7) && bash reports/m2/remote_manifest.sh
+	cd $(V7) && bash reports/m2/run_parallel.sh
+
+# --------------------------------------------------------------------------- #
+# Dataset  [rcwa-v7]
+# --------------------------------------------------------------------------- #
+GEN_SPECS = 0 3 5 9 13 15 19 22
+
+dataset:
+	cd $(V7) && $(PYTHON) scripts/build_m2_dataset.py \
+		--angles 0 30 60 --pols s p --specs $(GEN_SPECS) \
+		--data-dir reports/m2/data140 \
+		--out reports/m2/dataset_generalisation.npz
+
+validate-oblique:
+	cd $(V7) && $(PYTHON) scripts/validate_oblique.py \
+		--spec 3 --pol s --angle 30 --data-dir reports/m2/data140
 
 # --------------------------------------------------------------------------- #
 clean:
