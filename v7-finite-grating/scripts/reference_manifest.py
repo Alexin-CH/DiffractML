@@ -21,8 +21,9 @@ simulations, not jobs, and estimates both.
 
 Example
 -------
-    python scripts/reference_manifest.py --sets B --n-freq 16 --jobs 3
-    # -> 48 jobs, 528 sims, ~26.4 h serial, ~8.8 h on 3 workers
+    python scripts/reference_manifest.py --sets B --n-freq 16 --jobs 2
+    # -> 6 jobs, 528 reference points, 1056 FDTD runs,
+    #    ~56 h serial, ~28 h on 2 workers
 """
 
 from __future__ import annotations
@@ -88,12 +89,14 @@ def main(argv=None):
                    choices=["A", "B", "C"])
     p.add_argument("--resolution", type=float, default=140.0)
     p.add_argument("--n-freq", type=int, default=16)
-    p.add_argument("--jobs", type=int, default=3,
-                   help="parallel MEEP processes (default 3 on a 4-thread box)")
-    p.add_argument("--min-normal", type=float, default=2.0,
-                   help="minutes per normal-incidence broadband run at res=140")
-    p.add_argument("--min-oblique", type=float, default=3.0,
-                   help="minutes per oblique narrowband run at res=140")
+    p.add_argument("--jobs", type=int, default=2,
+                   help="parallel MEEP processes (2 on the 4-thread remote)")
+    p.add_argument("--min-normal", type=float, default=6.4,
+                   help="minutes per normal reference point (control + structure)")
+    p.add_argument("--min-oblique", type=float, default=6.4,
+                   help="minutes per oblique reference point (control + structure)")
+    p.add_argument("--runs-per-ref", type=int, default=2,
+                   help="FDTD runs per reference point (control + structure)")
     p.add_argument("--out-dir", default="reports/m2/data140")
     p.add_argument("--shell", default="reports/m2/remote_manifest.sh")
     p.add_argument("--jobs-file", default="reports/m2/remote_jobs.txt")
@@ -140,9 +143,11 @@ def main(argv=None):
         ],
         "totals": {
             "jobs": len(selected),
-            "simulations": total_sims,
-            "normal_simulations": normal_sims,
-            "oblique_simulations": oblique_sims,
+            "reference_points": total_sims,
+            "normal_reference_points": normal_sims,
+            "oblique_reference_points": oblique_sims,
+            "fdtd_runs": total_sims * a.runs_per_ref,
+            "runs_per_ref": a.runs_per_ref,
             "serial_hours": serial_min / 60.0,
             "parallel_hours": serial_min / 60.0 / max(1, a.jobs),
         },
@@ -150,10 +155,12 @@ def main(argv=None):
     with open(a.json_out, "w") as fh:
         json.dump(manifest, fh, indent=2)
 
-    print(f"{len(selected)} jobs, {total_sims} simulations "
+    print(f"{len(selected)} jobs, {total_sims} reference points "
           f"({normal_sims} normal + {oblique_sims} oblique)")
-    print(f"serial   : ~{serial_min / 60:.1f} h at res={a.resolution:g}")
-    print(f"parallel : ~{serial_min / 60 / max(1, a.jobs):.1f} h "
+    print(f"FDTD runs  : {total_sims * a.runs_per_ref} "
+          f"({a.runs_per_ref} per point: control + structure)")
+    print(f"serial     : ~{serial_min / 60:.1f} h at res={a.resolution:g}")
+    print(f"parallel   : ~{serial_min / 60 / max(1, a.jobs):.1f} h "
           f"on {a.jobs} workers")
     for path in (a.shell, a.jobs_file, a.runner, a.json_out):
         print(f"wrote {path}")

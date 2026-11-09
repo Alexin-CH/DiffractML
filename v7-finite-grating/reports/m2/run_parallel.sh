@@ -3,7 +3,7 @@
 # Run inside tmux from anywhere:  bash v7-finite-grating/reports/m2/run_parallel.sh
 set -uo pipefail
 cd "$(dirname "$0")/../.."
-JOBS="${JOBS:-3}"
+JOBS="${JOBS:-2}"
 export OMP_NUM_THREADS=1
 echo "[runner] start $(date -Is)  jobs=$JOBS  cwd=$(pwd)"
 xargs -a reports/m2/remote_jobs.txt -d '\n' -P "$JOBS" -I CMD \

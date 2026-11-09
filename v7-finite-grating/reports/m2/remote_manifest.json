@@ -114,10 +114,12 @@
   ],
   "totals": {
     "jobs": 6,
-    "simulations": 528,
-    "normal_simulations": 16,
-    "oblique_simulations": 512,
-    "serial_hours": 26.133333333333333,
-    "parallel_hours": 8.71111111111111
+    "reference_points": 528,
+    "normal_reference_points": 16,
+    "oblique_reference_points": 512,
+    "fdtd_runs": 1056,
+    "runs_per_ref": 2,
+    "serial_hours": 56.32000000000001,
+    "parallel_hours": 28.160000000000004
   }
 }
