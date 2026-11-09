@@ -18,6 +18,15 @@ from grating import GratingSpec, sample_grating_spec
 N_RIDGES = 5
 WL_DEFAULT = (0.7, 1.15)
 
+
+def reference_base(idx: int, pol: str, angle: float,
+                   spec_set: str = "m2") -> str:
+    """Filename stem shared by the generator and the dataset builder."""
+    if spec_set == "m2" and abs(angle) < 1e-9:
+        return f"m2_{idx:03d}_{pol}"
+    tag = "m2" if spec_set == "m2" else "res"
+    return f"{tag}_{idx:03d}_{pol}_a{angle:02.0f}"
+
 # The "fast" RCWA representation used as the model input.
 RCWA_CFG = dict(padding_um=1.0, nh=32, grid_nm=10.0, n_layers=40)
 

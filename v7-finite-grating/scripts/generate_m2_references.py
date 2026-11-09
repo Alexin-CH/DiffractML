@@ -25,6 +25,7 @@ from __future__ import annotations
 
 import os
 import sys
+import time
 
 _HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.abspath(os.path.join(_HERE, "..", "src")))
@@ -61,10 +62,9 @@ def parse(argv=None):
 
 
 def reference_base(a, idx: int) -> str:
-    if a.spec_set == "m2" and abs(a.angle) < 1e-9:
-        return f"m2_{idx:03d}_{a.pol}"
-    tag = "m2" if a.spec_set == "m2" else "res"
-    return f"{tag}_{idx:03d}_{a.pol}_a{a.angle:02.0f}"
+    from m2_data import reference_base as _base
+
+    return _base(idx, a.pol, a.angle, a.spec_set)
 
 
 def main(argv=None):
@@ -86,7 +86,9 @@ def main(argv=None):
 
         spec = maker(idx)
         print(f"  [{idx:03d}] ridges={spec.n_ridges} period={spec.period:.3f} "
-              f"amp={spec.amplitude:.3f} missing={int(spec.missing.sum())}")
+              f"amp={spec.amplitude:.3f} missing={int(spec.missing.sum())} "
+              f"pol={a.pol} angle={a.angle:g}deg", flush=True)
+        t0 = time.time()
         result = run_grating(
             spec,
             wl_range=tuple(a.wl_range),
@@ -98,10 +100,13 @@ def main(argv=None):
             tin_dataset=a.tin_dataset,
             decay_by=a.decay_by,
         )
+        dt = time.time() - t0
         save_reference(result, base, spec=spec,
                        extra={"n_freq": a.n_freq, "wl_range": list(a.wl_range),
-                              "stage": a.spec_set, "angle_deg": a.angle})
-        print(f"        saved, A mean={float(np.mean(1 - result.R - result.T)):.4f}")
+                              "stage": a.spec_set, "angle_deg": a.angle,
+                              "elapsed_s": dt})
+        print(f"        saved in {dt:.0f}s, "
+              f"A mean={float(np.mean(1 - result.R - result.T)):.4f}")
 
 
 if __name__ == "__main__":
