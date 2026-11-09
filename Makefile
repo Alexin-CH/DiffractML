@@ -66,10 +66,10 @@ setup:
 install: setup
 
 env-rcwa:
-	$(CONDA) env create -f $(V7)/environment-rcwa.yml --override-channels -c conda-forge
+	$(CONDA) env create -f $(V7)/environment-rcwa.yml
 
 env-meep:
-	$(CONDA) env create -f $(V7)/environment.yml --override-channels -c conda-forge
+	$(CONDA) env create -f $(V7)/environment.yml
 
 torcwa:
 	$(PYTHON) -m pip install -e TORCWA/
