@@ -42,7 +42,7 @@ differentiable).
 
 ### Prerequisites
 
-- [Miniconda](https://docs.conda.io/en/latest/miniconda.html) or Anaconda.
+- [Miniconda or Anaconda](https://www.anaconda.com/docs/getting-started/concepts/anaconda-or-miniconda).
 
 ### Installation
 
