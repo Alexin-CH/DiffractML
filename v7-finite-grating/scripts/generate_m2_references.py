@@ -30,6 +30,7 @@ _HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.abspath(os.path.join(_HERE, "..", "src")))
 
 import argparse  # noqa: E402
+import time  # noqa: E402
 
 import numpy as np  # noqa: E402
 
@@ -87,6 +88,7 @@ def main(argv=None):
         spec = maker(idx)
         print(f"  [{idx:03d}] ridges={spec.n_ridges} period={spec.period:.3f} "
               f"amp={spec.amplitude:.3f} missing={int(spec.missing.sum())}")
+        t0 = time.time()
         result = run_grating(
             spec,
             wl_range=tuple(a.wl_range),
@@ -98,10 +100,14 @@ def main(argv=None):
             tin_dataset=a.tin_dataset,
             decay_by=a.decay_by,
         )
+        elapsed = time.time() - t0
         save_reference(result, base, spec=spec,
                        extra={"n_freq": a.n_freq, "wl_range": list(a.wl_range),
-                              "stage": a.spec_set, "angle_deg": a.angle})
-        print(f"        saved, A mean={float(np.mean(1 - result.R - result.T)):.4f}")
+                              "stage": a.spec_set, "angle_deg": a.angle,
+                              "elapsed_s": round(elapsed, 1),
+                              "resolution": a.resolution})
+        print(f"        saved in {elapsed:.0f}s, "
+              f"A mean={float(np.mean(1 - result.R - result.T)):.4f}")
 
 
 if __name__ == "__main__":

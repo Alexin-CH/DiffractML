@@ -412,14 +412,17 @@ Details: `reports/experiments/E4b-E4c-effective-lattice.md`.
 The p-pol / oblique / Rayleigh-rich datasets are specified by a manifest:
 
 ```bash
-python scripts/reference_manifest.py --sets A B C
-# -> 11 jobs, 104 MEEP runs, ~3.5 h serial at res=140
-# writes reports/m2/remote_manifest.{sh,json}
+python scripts/reference_manifest.py     # default set B: 8 geoms × 0/30/60° × s/p
+# -> 48 jobs, 528 MEEP simulations (~26 h serial, ~8.7 h with JOBS=3)
+# writes reports/m2/remote_manifest.{sh,json} and remote_jobs.txt
+JOBS=3 bash reports/m2/remote_manifest.sh
 ```
 
-Set A is p-pol at 0° for the 24 existing geometries; B is oblique
-(0/30/60°, s+p) on an 8-geometry subset; C is eight 10-ridge, 0.4–0.8 µm
-gratings at 30/60° (Rayleigh anomalies in band, no slab).
+A normal-incidence job is **one** broadband simulation; an oblique job runs
+**one narrowband simulation per wavelength** (a fixed phase ramp only matches
+one frequency), so the 30°/60° jobs dominate the cost. Each job logs its
+`elapsed_s` into the reference JSON and the runner appends to
+`reports/m2/manifest_run.log`.
 
 ## Next
 
