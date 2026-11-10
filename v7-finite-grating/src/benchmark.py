@@ -49,6 +49,21 @@ def spec_from_dict(d: dict) -> GratingSpec:
 # --------------------------------------------------------------------------- #
 # Reference I/O
 # --------------------------------------------------------------------------- #
+def _jsonable(obj):
+    """Recursively convert numpy/complex values into JSON-safe ones."""
+    if isinstance(obj, np.ndarray):
+        return obj.tolist()
+    if isinstance(obj, np.generic):
+        return obj.item()
+    if isinstance(obj, complex):
+        return {"real": obj.real, "imag": obj.imag}
+    if isinstance(obj, dict):
+        return {str(k): _jsonable(v) for k, v in obj.items()}
+    if isinstance(obj, (list, tuple)):
+        return [_jsonable(v) for v in obj]
+    return obj
+
+
 def save_reference(result, path: str, *, spec: GratingSpec, extra: Optional[dict] = None):
     """Save a MEEP ``FDTDResult`` as ``<path>.csv`` + ``<path>.json``."""
     os.makedirs(os.path.dirname(os.path.abspath(path)), exist_ok=True)
@@ -65,13 +80,12 @@ def save_reference(result, path: str, *, spec: GratingSpec, extra: Optional[dict
         "angle_deg": float(result.angle_deg),
         "pol": result.pol,
         "n_sub": float(spec.substrate_index),
-        "fdtd_meta": {k: (v if not isinstance(v, np.ndarray) else v.tolist())
-                      for k, v in result.meta.items()},
+        "fdtd_meta": result.meta,
     }
     if extra:
         meta.update(extra)
     with open(json_path, "w", encoding="utf-8") as fh:
-        json.dump(meta, fh, indent=2)
+        json.dump(_jsonable(meta), fh, indent=2, default=str)
     return csv_path, json_path
 
 

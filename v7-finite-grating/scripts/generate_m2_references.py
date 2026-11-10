@@ -74,6 +74,7 @@ def main(argv=None):
     maker = make_spec if a.spec_set == "m2" else make_resonant_spec
     print(f"{a.spec_set}: {len(ids)} specs, pol={a.pol}, angle={a.angle}°, "
           f"res={a.resolution} -> {os.path.normpath(a.out_dir)}")
+    failed = []
 
     for idx in ids:
         base = os.path.join(a.out_dir, reference_base(a, idx))
@@ -89,24 +90,35 @@ def main(argv=None):
               f"amp={spec.amplitude:.3f} missing={int(spec.missing.sum())} "
               f"pol={a.pol} angle={a.angle:g}deg", flush=True)
         t0 = time.time()
-        result = run_grating(
-            spec,
-            wl_range=tuple(a.wl_range),
-            n_freq=a.n_freq,
-            pol=a.pol,
-            resolution=a.resolution,
-            angle_deg=a.angle,
-            pad=a.pad,
-            tin_dataset=a.tin_dataset,
-            decay_by=a.decay_by,
-        )
-        dt = time.time() - t0
-        save_reference(result, base, spec=spec,
-                       extra={"n_freq": a.n_freq, "wl_range": list(a.wl_range),
-                              "stage": a.spec_set, "angle_deg": a.angle,
-                              "elapsed_s": dt})
+        try:
+            result = run_grating(
+                spec,
+                wl_range=tuple(a.wl_range),
+                n_freq=a.n_freq,
+                pol=a.pol,
+                resolution=a.resolution,
+                angle_deg=a.angle,
+                pad=a.pad,
+                tin_dataset=a.tin_dataset,
+                decay_by=a.decay_by,
+            )
+            dt = time.time() - t0
+            save_reference(result, base, spec=spec,
+                           extra={"n_freq": a.n_freq,
+                                  "wl_range": list(a.wl_range),
+                                  "stage": a.spec_set, "angle_deg": a.angle,
+                                  "elapsed_s": dt})
+        except Exception as exc:  # keep the remaining specs alive
+            failed.append(idx)
+            print(f"  [{idx:03d}] FAILED after {time.time() - t0:.0f}s: "
+                  f"{type(exc).__name__}: {exc}", flush=True)
+            continue
         print(f"        saved in {dt:.0f}s, "
               f"A mean={float(np.mean(1 - result.R - result.T)):.4f}")
+
+    if failed:
+        print(f"{len(failed)} reference(s) failed: {failed}", flush=True)
+        raise SystemExit(1)
 
 
 if __name__ == "__main__":
