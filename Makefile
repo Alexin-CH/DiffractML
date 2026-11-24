@@ -142,7 +142,7 @@ GEN_SPECS = 0 3 5 9 13 15 19 22
 
 dataset:
 	cd $(V7) && $(PYTHON) scripts/build_m2_dataset.py \
-		--angles 0 30 60 --pols s p --specs $(GEN_SPECS) \
+		--angles 0 30 --pols s p --specs $(GEN_SPECS) \
 		--data-dir reports/m2/data140 \
 		--out reports/m2/dataset_generalisation.npz
 

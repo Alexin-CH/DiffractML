@@ -48,6 +48,23 @@ def parse(argv=None):
     return p.parse_args(argv)
 
 
+def _prepare_pair(ref, res, angle, pol, n_sub):
+    """De-embed at normal incidence; compare raw at oblique.
+
+    The area-weighted de-embedding assumes the aperture and the bare padding
+    add incoherently, which fails at oblique incidence (it produced negative
+    T).  There, the MEEP cell and the RCWA supercell both contain the same
+    padding, so raw R/T is directly comparable — and empirically much better.
+    """
+    if abs(angle) < 1e-9:
+        return deembed_reference(ref), deembed_rcwa(res, angle, pol, n_sub)
+    ref_d = dict(ref)
+    ref_d["A"] = 1.0 - ref["R"] - ref["T"]
+    raw = dict(res)
+    raw["A"] = 1.0 - res["R"] - res["T"]
+    return ref_d, raw
+
+
 def main(argv=None):
     a = parse(argv)
     cfg = RCWAConfig(device=a.device, **RCWA_CFG)
@@ -66,17 +83,22 @@ def main(argv=None):
                     continue
 
                 ref = load_reference(base)
-                ref_d = deembed_reference(ref)
                 spec = ref["spec"]
-                wl = ref_d["wl_um"]
+                wl = ref["wl_um"]
 
                 res = spectrum_supercell(
                     spec, wl, cfg, pol=pol, angle_deg=angle,
                     tin_dataset=a.tin_dataset,
                 )
-                rcwa_d = deembed_rcwa(res, angle, pol, spec.substrate_index)
+                ref_d, rcwa_d = _prepare_pair(
+                    ref, res, angle, pol, spec.substrate_index)
 
                 X, Yr, Ya, Raw = build_example(spec, wl, rcwa_d, ref_d)
+                # condition the spectrum on the illumination
+                th = np.deg2rad(float(angle))
+                extra = np.tile([np.sin(th), np.cos(th),
+                                 0.0 if pol == "s" else 1.0], (len(wl), 1))
+                X = np.column_stack([X, extra]).astype(np.float32)
                 Xs.append(X)
                 Yrs.append(Yr)
                 Yas.append(Ya)
@@ -109,7 +131,8 @@ def main(argv=None):
         a.out,
         X=X, Y_res=Y_res, Y_abs=Y_abs, RCWA_abs=RCWA_abs,
         group=group, wl=wl, angle_deg=angle_deg, pol_id=pol_id,
-        feature_names=np.asarray(FEATURE_NAMES),
+        feature_names=np.asarray(FEATURE_NAMES + ["sin_theta", "cos_theta",
+                                                  "pol_p"]),
         spec_ids=np.asarray(sorted({u[0] for u in used}), dtype=np.int32),
         rcwa_cfg=np.asarray(json.dumps(RCWA_CFG)),
     )

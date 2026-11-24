@@ -64,6 +64,17 @@ def _jsonable(obj):
     return obj
 
 
+def _reference_sx(result) -> float:
+    """Cell width from a result, handling both normal and oblique meta shapes."""
+    meta = result.meta
+    if "sx" in meta:
+        return float(meta["sx"])
+    runs = meta.get("runs")
+    if runs:
+        return float(runs[0].get("sx", np.nan))
+    return float("nan")
+
+
 def save_reference(result, path: str, *, spec: GratingSpec, extra: Optional[dict] = None):
     """Save a MEEP ``FDTDResult`` as ``<path>.csv`` + ``<path>.json``."""
     os.makedirs(os.path.dirname(os.path.abspath(path)), exist_ok=True)
@@ -75,7 +86,7 @@ def save_reference(result, path: str, *, spec: GratingSpec, extra: Optional[dict
 
     meta = {
         "spec": spec_to_dict(spec),
-        "Lx_um": float(result.meta.get("sx", np.nan)),
+        "Lx_um": _reference_sx(result),
         "W_um": float(spec.aperture_width),
         "angle_deg": float(result.angle_deg),
         "pol": result.pol,
@@ -121,6 +132,10 @@ def load_reference(path: str) -> dict:
 
 def deembed_reference(ref: dict) -> dict:
     """Return a copy of the reference with de-embedded R/T/A."""
+    lx = ref.get("Lx_um")
+    if lx is None or not np.isfinite(float(lx)):
+        raise ValueError(
+            "reference has no finite Lx_um; run scripts/repair_reference_meta.py")
     R0, T0 = bare_substrate(ref["angle_deg"], ref["pol"], ref["n_sub"])
     R, T, A = deembed(ref["R"], ref["T"], Lx_um=ref["Lx_um"], W_um=ref["W_um"],
                       R0=R0, T0=T0)

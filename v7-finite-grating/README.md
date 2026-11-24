@@ -407,24 +407,31 @@ role inside a padded supercell at `nh=8`.
 
 Details: `reports/experiments/E4b-E4c-effective-lattice.md`.
 
-## Remote references for generalisation
+## Experiment 5: generalisation to oblique incidence and p-pol
 
-The p-pol / oblique / Rayleigh-rich datasets are specified by a manifest:
+48 MEEP references (8 geometries × {0°, 30°, 60°} × {s, p} × 16 λ, res=140).
+The oblique de-embedding was found to be invalid (negative T); raw RCWA-vs-MEEP
+is the correct comparison at oblique. The 60° set is biased by side-PML
+clipping (bare-interface R 0.107 vs Fresnel 0.177) and is excluded.
 
-```bash
-python scripts/reference_manifest.py --sets A B C
-# -> 11 jobs, 104 MEEP runs, ~3.5 h serial at res=140
-# writes reports/m2/remote_manifest.{sh,json}
-```
+Dataset: 0° + 30°, 512 samples, 19 features (`sin θ`, `cos θ`, `pol_p` added).
 
-Set A is p-pol at 0° for the 24 existing geometries; B is oblique
-(0/30/60°, s+p) on an 8-geometry subset; C is eight 10-ridge, 0.4–0.8 µm
-gratings at 30/60° (Rayleigh anomalies in band, no slab).
+| subset (2 held-out geometries) | A raw | A corrected |
+|---|---:|---:|
+| all | 0.0655 | **0.0061** |
+| 0° s | 0.0175 | 0.0037 |
+| 0° p | 0.1045 | 0.0093 |
+| 30° s | 0.0071 | 0.0044 |
+| 30° p | 0.0766 | 0.0056 |
+
+The correction transfers across angle and polarisation on unseen geometries.
+Details: `reports/experiments/E5-generalisation.md`.
 
 ## Next
 
-- Train a residual model on the new p-pol / oblique references, with
-  `(λ, θ, pol)` as inputs and `(ΔR, ΔT)` outputs.
+- Regenerate 60° with a wider MEEP cell (validate against Fresnel first).
+- Check whether the p-pol normal-incidence raw error (0.10) is RCWA convergence
+  (`nh`) or a reference artefact.
 - Use the effective-ε knob as an encoder target (`fill`, `ε_scale`) for the
   missing-ridge class.
 - Inverse design through the differentiable solver (its well-conditioned
