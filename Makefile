@@ -135,6 +135,26 @@ manifest:
 references:
 	cd $(V7) && bash reports/m2/run_parallel.sh
 
+# Oblique flux fix: gate the cell against Fresnel, repair the archived 30 deg
+# references, regenerate 60 deg at the chosen padding, then the p-pol study.
+flux-selfcheck:
+	cd $(V7) && $(PYTHON) scripts/flux_selfcheck.py --angles 30 60 \
+		--pads 1.5 3 4 --pols s p --resolution 140
+
+flux-repair:
+	cd $(V7) && $(PYTHON) scripts/repair_reference_flux.py --angles 30 \
+		--data-dir reports/m2/data140 --out-dir reports/m2/data140_fix
+
+pol-study:
+	cd $(V7) && $(PYTHON) scripts/pol_convergence.py --spec 3 \
+		--resolutions 140 200 280 --skip-existing
+
+pol-study-rcwa:
+	cd $(V7) && $(PYTHON) scripts/pol_convergence_rcwa.py
+
+fix-queue:
+	cd $(V7) && bash reports/m2/start_fix.sh
+
 # --------------------------------------------------------------------------- #
 # Dataset  [rcwa-v7]
 # --------------------------------------------------------------------------- #

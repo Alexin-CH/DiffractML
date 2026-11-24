@@ -75,11 +75,46 @@ def _reference_sx(result) -> float:
     return float("nan")
 
 
-def save_reference(result, path: str, *, spec: GratingSpec, extra: Optional[dict] = None):
-    """Save a MEEP ``FDTDResult`` as ``<path>.csv`` + ``<path>.json``."""
+def energy_report(R, T) -> dict:
+    """Physicality diagnostics for a raw (non-de-embedded) spectrum.
+
+    A raw MEEP reference is physical iff ``R, T >= 0`` and ``R + T <= 1``;
+    with the TiN grating the sum is strictly below 1 by the absorptance.  The
+    failure mode this catches is a mis-normalised incident flux (for example
+    dividing T by the reflection-plane calibration at oblique incidence), which
+    produces ``T > 1`` and a sum well above 1.
+    """
+    R = np.asarray(R, dtype=float)
+    T = np.asarray(T, dtype=float)
+    return {
+        "energy_excess_max": float(np.max(R + T - 1.0)),
+        "R_min": float(np.min(R)),
+        "T_min": float(np.min(T)),
+    }
+
+
+def save_reference(result, path: str, *, spec: GratingSpec,
+                   extra: Optional[dict] = None, energy_tol: float = 0.02):
+    """Save a MEEP ``FDTDResult`` as ``<path>.csv`` + ``<path>.json``.
+
+    Refuses to write an unphysical spectrum (``R + T > 1 + energy_tol`` or a
+    negative efficiency), because a silently biased reference is worse than a
+    missing one: the generator isolates failures per spec.
+    """
     os.makedirs(os.path.dirname(os.path.abspath(path)), exist_ok=True)
     csv_path = path if path.endswith(".csv") else path + ".csv"
     json_path = os.path.splitext(csv_path)[0] + ".json"
+
+    report = energy_report(result.R, result.T)
+    if report["energy_excess_max"] > energy_tol:
+        raise ValueError(
+            f"unphysical reference for {os.path.basename(csv_path)}: "
+            f"max(R+T-1)={report['energy_excess_max']:.3f} > {energy_tol}; "
+            "check the per-plane incident-flux normalisation")
+    if min(report["R_min"], report["T_min"]) < -energy_tol:
+        raise ValueError(
+            f"negative efficiency for {os.path.basename(csv_path)}: "
+            f"R_min={report['R_min']:.3f} T_min={report['T_min']:.3f}")
 
     data = np.column_stack([result.wl_um, result.R, result.T])
     np.savetxt(csv_path, data, delimiter=",", header="wl_um,R,T", comments="")
@@ -91,6 +126,7 @@ def save_reference(result, path: str, *, spec: GratingSpec, extra: Optional[dict
         "angle_deg": float(result.angle_deg),
         "pol": result.pol,
         "n_sub": float(spec.substrate_index),
+        "energy": report,
         "fdtd_meta": result.meta,
     }
     if extra:

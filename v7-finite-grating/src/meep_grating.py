@@ -190,6 +190,76 @@ def _run_until_decayed(sim, meep, pol: str, point, decay_by: float, dT: float):
     sim.run(until_after_sources=meep.stop_when_fields_decayed(dT, comp, point, decay_by))
 
 
+def empty_cell_fluxes(
+    meep,
+    *,
+    fcen: float,
+    fwidth: float,
+    n_freq: int,
+    angle_deg: float,
+    pol: str,
+    sx: float,
+    sy: float,
+    y_src: float,
+    y_refl: float,
+    y_tran: float,
+    resolution: float,
+    dpml: float,
+    superstrate_index: float = 1.0,
+    decay_by: float = 1e-7,
+    dT: float = 20.0,
+    periodic: bool = False,
+):
+    """Incident-flux calibration in an empty cell, at both monitor planes.
+
+    Returns ``(refl_flux_data, inc_refl, inc_tran)``.  The two calibrations
+    coincide at normal incidence but diverge at oblique incidence: the
+    truncated plane-wave source loses part of its beam to the side PML on the
+    way from the reflection plane down to the transmission plane, and the
+    losses are not equal at the two planes.  R and T must therefore each be
+    normalised by the incident flux measured at *their own* plane.
+
+    This is factored out of :func:`_run_once` so that archived references can
+    be re-calibrated after the fact (``scripts/repair_reference_flux.py``).
+    """
+    normal = abs(angle_deg) < 1e-9
+    source_width = sx if (normal or periodic) else (sx - 2.0 * dpml)
+    sources = _make_sources(
+        meep, fcen, fwidth,
+        angle_deg=angle_deg, pol=pol, z_src=y_src,
+        source_width=source_width,
+        superstrate_index=superstrate_index,
+        is_integrated=not periodic,
+    )
+    boundaries = ([meep.PML(dpml, direction=meep.Y)] if periodic
+                  else [meep.PML(dpml)])
+    extra = {"k_point": meep.Vector3()} if periodic else {}
+    sim = meep.Simulation(
+        cell_size=meep.Vector3(sx, sy, 0),
+        boundary_layers=boundaries,
+        geometry=[],
+        sources=sources,
+        default_material=meep.Medium(index=superstrate_index),
+        resolution=resolution,
+        **extra,
+    )
+    refl_fr = meep.FluxRegion(center=meep.Vector3(0, y_refl, 0),
+                             size=meep.Vector3(sx, 0, 0))
+    tran_fr = meep.FluxRegion(center=meep.Vector3(0, y_tran, 0),
+                             size=meep.Vector3(sx, 0, 0))
+    refl = sim.add_flux(fcen, fwidth, max(1, int(n_freq)), refl_fr)
+    tran = sim.add_flux(fcen, fwidth, max(1, int(n_freq)), tran_fr)
+    _run_until_decayed(sim, meep, pol, meep.Vector3(0, y_refl, 0), decay_by, dT)
+
+    data = sim.get_flux_data(refl)
+    # Incident wave travels -y, so the signed fluxes are negative.
+    inc_refl = -np.asarray(meep.get_fluxes(refl), dtype=float)
+    inc_tran = -np.asarray(meep.get_fluxes(tran), dtype=float)
+    if np.any(inc_refl <= 0) or np.any(inc_tran <= 0):
+        raise RuntimeError("non-positive incident flux in control run")
+    return data, inc_refl, inc_tran
+
+
 def _run_once(
     meep,
     spec: GratingSpec,
@@ -256,24 +326,19 @@ def _run_once(
     nfreq = max(1, int(n_freq))
 
     # ---- control run: empty cell (no grating, no substrate) ---- #
-    sim = _sim([])
-    refl_fr = meep.FluxRegion(center=meep.Vector3(0, y_refl, 0), size=meep.Vector3(sx, 0, 0))
-    tran_fr = meep.FluxRegion(center=meep.Vector3(0, y_tran, 0), size=meep.Vector3(sx, 0, 0))
-    refl = sim.add_flux(fcen, fwidth, nfreq, refl_fr)
-    tran = sim.add_flux(fcen, fwidth, nfreq, tran_fr)
-    _run_until_decayed(sim, meep, pol, meep.Vector3(0, y_refl, 0), decay_by, dT)
-    empty_refl_data = sim.get_flux_data(refl)
-    empty_refl_flux = np.asarray(meep.get_fluxes(refl), dtype=float)
-    empty_tran_flux = np.asarray(meep.get_fluxes(tran), dtype=float)
-    # Incident wave travels -y, so the signed fluxes are negative; normalise
-    # each plane by the incident flux measured at that same plane.
-    inc_refl = -empty_refl_flux
-    inc_tran = -empty_tran_flux
-    if np.any(inc_refl <= 0) or np.any(inc_tran <= 0):
-        raise RuntimeError("non-positive incident flux in control run")
-    sim.reset_meep()
+    empty_refl_data, inc_refl, inc_tran = empty_cell_fluxes(
+        meep, fcen=fcen, fwidth=fwidth, n_freq=nfreq, angle_deg=angle_deg,
+        pol=pol, sx=sx, sy=sy, y_src=y_src, y_refl=y_refl, y_tran=y_tran,
+        resolution=resolution, dpml=dpml,
+        superstrate_index=spec.superstrate_index, decay_by=decay_by, dT=dT,
+        periodic=periodic,
+    )
 
     # ---- structure run ---- #
+    refl_fr = meep.FluxRegion(center=meep.Vector3(0, y_refl, 0),
+                             size=meep.Vector3(sx, 0, 0))
+    tran_fr = meep.FluxRegion(center=meep.Vector3(0, y_tran, 0),
+                             size=meep.Vector3(sx, 0, 0))
     sim = _sim(
         _build_geometry(
             meep, spec, tin_material,
@@ -290,13 +355,21 @@ def _run_once(
     freqs = np.asarray(meep.get_flux_freqs(refl), dtype=float)
 
     R = refl_flux / inc_refl
-    T = -tran_flux / inc_refl
+    # T is normalised at its own plane: at oblique incidence the incident beam
+    # loses a different fraction to the side PML on the way to each monitor.
+    T = -tran_flux / inc_tran
     wl_um = 1.0 / freqs
 
     meta = {
         "fcen": fcen,
         "fwidth": fwidth,
+        # ``incident_flux`` is kept for backwards compatibility (reflection
+        # plane); the transmission plane has its own calibration.
         "incident_flux": inc_refl,
+        "incident_flux_refl": inc_refl,
+        "incident_flux_tran": inc_tran,
+        "incident_flux_ratio": (inc_refl / inc_tran).tolist()
+        if np.ndim(inc_refl) else float(inc_refl / inc_tran),
         "sx": sx,
         "sy": sy,
         "resolution": resolution,
