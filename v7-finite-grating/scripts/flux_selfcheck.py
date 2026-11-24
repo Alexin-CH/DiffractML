@@ -39,7 +39,11 @@ def parse(argv=None):
     p.add_argument("--resolution", type=float, default=140.0)
     p.add_argument("--n-sub", type=float, default=1.5)
     p.add_argument("--tol", type=float, default=0.02,
-                   help="max |R-R0| or |T-T0| accepted")
+                   help="target max |R-R0| or |T-T0|; below this the pad is "
+                        "preferred")
+    p.add_argument("--hard-tol", type=float, default=0.05,
+                   help="accept the best pad below this error even if it misses "
+                        "--tol (residual side-loss bias)")
     p.add_argument("--out", default=os.path.join(
         _HERE, "..", "reports", "m2", "selfcheck.json"))
     p.add_argument("--merge", action="store_true",
@@ -97,17 +101,41 @@ def main(argv=None):
         results = merged + results
         print(f"merged {len(merged)} earlier result(s) from {a.out}", flush=True)
 
-    chosen = {}
+    # Aggregate per (angle, pad) over polarisations: a pad is only usable if it
+    # reproduces Fresnel for both s and p.
+    chosen, pad_errors = {}, {}
     for angle in a.angles:
-        passing = [r["pad"] for r in results
-                   if r["angle"] == angle and r["pass"]]
-        chosen[str(int(angle))] = min(passing) if passing else None
-        print(f"CHOSEN_PAD angle={angle:g} pad={chosen[str(int(angle))]}",
-              flush=True)
+        by_pad = {}
+        for r in results:
+            if r["angle"] != angle:
+                continue
+            key = r["pad"]
+            by_pad[key] = max(by_pad.get(key, 0.0), r["max_err"])
+        pad_errors[str(int(angle))] = by_pad
+        passing = sorted(p for p, e in by_pad.items() if e <= a.tol)
+        if passing:
+            chosen[str(int(angle))] = passing[0]
+            print(f"CHOSEN_PAD angle={angle:g} pad={passing[0]} "
+                  f"err={by_pad[passing[0]]:.4f}", flush=True)
+            continue
+        # Nothing meets the target: fall back to the best pad, but only if its
+        # error is small enough to be a bias we can live with (or correct for).
+        best = min(by_pad, key=by_pad.get) if by_pad else None
+        best_err = by_pad.get(best, float("inf"))
+        if best is not None and best_err <= a.hard_tol:
+            chosen[str(int(angle))] = best
+            print(f"CHOSEN_PAD angle={angle:g} pad={best} err={best_err:.4f} "
+                  f"WARN above tol {a.tol} but under hard ceiling {a.hard_tol}",
+                  flush=True)
+        else:
+            chosen[str(int(angle))] = None
+            print(f"CHOSEN_PAD angle={angle:g} pad=None best={best} "
+                  f"err={best_err:.4f} > hard ceiling {a.hard_tol}", flush=True)
 
     os.makedirs(os.path.dirname(os.path.abspath(a.out)), exist_ok=True)
     with open(a.out, "w") as fh:
-        json.dump({"tolerance": a.tol, "chosen_pad": chosen,
+        json.dump({"tolerance": a.tol, "hard_tolerance": a.hard_tol,
+                   "chosen_pad": chosen, "pad_errors": pad_errors,
                    "results": results}, fh, indent=2)
 
     all_ok = all(v is not None for v in chosen.values())

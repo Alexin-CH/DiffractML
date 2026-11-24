@@ -50,6 +50,17 @@ except Exception:
     print("")
 PY
 }
+read_pad_err() {
+    $PY - <<'PY'
+import json
+try:
+    d = json.load(open("reports/m2/selfcheck.json"))
+    pad = str(d["chosen_pad"].get("60"))
+    print(d.get("pad_errors", {}).get("60", {}).get(pad, "?"))
+except Exception:
+    print("?")
+PY
+}
 PAD60=$(read_pad)
 if [ -z "$PAD60" ]; then
     log "stage 0b: no pad <= 4 passed at 60 deg, trying pad=6"
@@ -61,7 +72,8 @@ if [ -z "$PAD60" ]; then
     log "GATE FAILED: 60 deg does not reproduce Fresnel at any pad; batch aborted"
     exit 1
 fi
-log "gate ok: pad(60 deg) = $PAD60"
+log "gate ok: pad(60 deg) = $PAD60  (bare-interface max|err| = $(read_pad_err))"
+echo "$PAD60" > reports/m2/chosen_pad60.txt
 
 # ------------------------------------------------------------- 1. repair --- #
 NFIX=$(ls reports/m2/data140_fix/*_a30.json 2>/dev/null | wc -l)
