@@ -429,9 +429,12 @@ Details: `reports/experiments/E5-generalisation.md`.
 
 ## Next
 
-- Regenerate 60° with a wider MEEP cell (validate against Fresnel first).
-- Check whether the p-pol normal-incidence raw error (0.10) is RCWA convergence
-  (`nh`) or a reference artefact.
+- 60° is being regenerated at the padding chosen by the Fresnel gate
+  (`reports/m2/start_fix.sh`, remote tmux `fix`); 30° T was re-normalised into
+  `reports/m2/data140_fix/`. See `reports/experiments/E6-oblique-flux.md`.
+- p-pol at normal incidence: RCWA converges to ~0.055 above MEEP while MEEP
+  moves away with resolution. The resolution sweep and constant-ε contrast
+  ablation queued in stage 3 decide which side to trust.
 - Use the effective-ε knob as an encoder target (`fill`, `ε_scale`) for the
   missing-ridge class.
 - Inverse design through the differentiable solver (its well-conditioned

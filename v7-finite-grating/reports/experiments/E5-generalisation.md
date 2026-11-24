@@ -94,10 +94,18 @@ python scripts/train_m2.py --data reports/m2/dataset_generalisation.npz \
 
 ## Open items
 
-- 60° requires a wider MEEP cell; estimate `pad ≈ 5 µm` and validate against
-  Fresnel before regenerating.
-- p-pol at normal incidence has a large raw error (0.10); worth checking
-  whether it is RCWA convergence (`nh`) or the reference.
-- The oblique de-embedding that is correct for the padded cell is not derived;
-  we use raw values, which is adequate because the residual learns the
-  padding difference.
+*Superseded by [E6 - oblique flux](E6-oblique-flux.md).*  What E5 attributed to
+PML clipping alone was a flux-normalisation bug: T was divided by the
+reflection-plane incident flux, and the two plane calibrations differ by 4 % at
+30 deg and 10-90 % at 60 deg.  Consequences:
+
+- 60 deg needs `pad = 3-4` (not 5) plus the corrected normalisation; it is being
+  regenerated.
+- 30 deg T is corrected by the empty-cell calibration into `data140_fix/`.
+- p-pol at normal incidence is **not** an `nh` problem: RCWA converges to a
+  +0.057 offset from MEEP.  A resolution sweep plus a constant-eps ablation is
+  queued.
+- The oblique de-embedding formula is algebraically correct; it fails because a
+  finite patch with a laterally walking beam does not make the padding behave
+  like an infinite bare substrate.  Raw comparison (now with correct
+  normalisation) remains the policy.
