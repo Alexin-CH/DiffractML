@@ -18,6 +18,11 @@
 set -uo pipefail
 source ~/miniconda3/etc/profile.d/conda.sh
 conda activate meep-v7
+# Two workers, two physical cores: pin every worker to a single thread or MEEP's
+# FFT/OpenMP threads oversubscribe the box (load 4.5 on 4 cpus, ~5x slower).
+export OMP_NUM_THREADS=1
+export OPENBLAS_NUM_THREADS=1
+export MKL_NUM_THREADS=1
 cd ~/DiffractML/v7-finite-grating || exit 1
 
 LOG=reports/m2/run_fix2.log
