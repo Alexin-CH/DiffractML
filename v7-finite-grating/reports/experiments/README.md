@@ -14,6 +14,7 @@ objective, setup, results, interpretation, reproduce commands, and artifacts.
 | [E4a — oracle periodic config](E4a-oracle-config.md) | Does an equivalent periodic config exist? | jitter-only yes; missing ridge only partially — one of four geometries can be matched |
 | [E4b/E4c — effective lattice](E4b-E4c-effective-lattice.md) | Does an effective ε or low-order supercell help? | ε knob matches 2/4 missing-ridge geometries; nh=8 is too coarse for a reliable full response |
 | [E5 — generalisation](E5-generalisation.md) | Does the correction transfer to oblique incidence and p-pol? | yes: held-out A 0.065 → 0.006 on unseen geometries; 0° and 30° usable, 60° discarded (PML clipping) |
+| [E7 — oblique ratio](E7-oblique-ratio.md) | Can the 60° cell be trusted without a wider cell? | yes: divide by a bare control in the same cell (lossless R+T 1.02–1.05 → <0.01); campaign queued on one common cell |
 | [E6 — oblique flux](E6-oblique-flux.md) | Why was the 60° set unphysical, and is the p-pol error an `nh` problem? | T was normalised at the wrong monitor plane (4 % at 30°, up to 92 % at 60°); fixed, 30° repaired in place, 60° regenerated at pad≈3–4; p-pol converges to a +0.057 offset from MEEP, so not `nh` |
 
 Supporting artifacts stay next to the code (`reports/`, `reports/m2/`); the
