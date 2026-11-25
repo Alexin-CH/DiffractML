@@ -75,6 +75,22 @@ def _reference_sx(result) -> float:
     return float("nan")
 
 
+def bare_control_base(angle: float, pol: str, sx: float) -> str:
+    """Filename stem of the bare-substrate control for a campaign cell."""
+    return f"bare_a{angle:g}_{pol}_sx{sx:.2f}"
+
+
+def reference_sx(ref: dict) -> float:
+    """Cell width of a loaded reference (flat or per-run meta)."""
+    meta = ref.get("meta", {}).get("fdtd_meta", {})
+    if "sx" in meta:
+        return float(meta["sx"])
+    runs = meta.get("runs") or []
+    if runs:
+        return float(runs[0].get("sx", np.nan))
+    return float("nan")
+
+
 def energy_report(R, T) -> dict:
     """Physicality diagnostics for a raw (non-de-embedded) spectrum.
 
@@ -188,6 +204,40 @@ def deembed_rcwa(result: dict, angle_deg: float, pol: str,
     out = dict(result)
     out.update({"R_raw": result["R"], "T_raw": result["T"],
                 "R": R, "T": T, "A": A, "R0": R0, "T0": T0})
+    return out
+
+
+def load_bare_control(bare_dir: Optional[str], angle_deg: float, pol: str,
+                      sx: float):
+    """Load the bare-substrate control matching a cell, or ``None``."""
+    if not bare_dir or sx is None or not np.isfinite(float(sx)):
+        return None
+    base = os.path.join(bare_dir, bare_control_base(angle_deg, pol, float(sx)))
+    if not os.path.exists(base + ".json"):
+        return None
+    return load_reference(base)
+
+
+def ratio_correct(ref: dict, bare: dict, *, angle_deg: float, pol: str,
+                  n_sub: float = 1.5, floor: float = 1e-3) -> dict:
+    """Divide the cell's instrument response out of a structure reference.
+
+    ``R = R0 * R_struct / R_bare`` (and likewise T), so the incident-flux
+    calibration drops out and the result is the unbiased aperture/padding
+    mixture that :func:`deembed` expects.  A channel whose bare value is below
+    ``floor`` keeps its raw value: the ratio is ill-conditioned there (p-pol
+    near Brewster, where the instrument reflection dominates).
+    """
+    R0, T0 = bare_substrate(angle_deg, pol, n_sub)
+    Rb = np.interp(ref["wl_um"], bare["wl_um"], bare["R"])
+    Tb = np.interp(ref["wl_um"], bare["wl_um"], bare["T"])
+    R = np.asarray(ref["R"], dtype=float)
+    T = np.asarray(ref["T"], dtype=float)
+    Rc = np.where(Rb > floor, R0 * R / np.maximum(Rb, floor), R)
+    Tc = np.where(Tb > floor, T0 * T / np.maximum(Tb, floor), T)
+    out = dict(ref)
+    out.update({"R": Rc, "T": Tc, "A": 1.0 - Rc - Tc,
+                "R_raw": R, "T_raw": T, "R_bare": Rb, "T_bare": Tb})
     return out
 
 

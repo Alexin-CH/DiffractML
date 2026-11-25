@@ -24,7 +24,10 @@ sys.path.insert(0, os.path.abspath(os.path.join(_HERE, "..", "src")))
 
 import numpy as np  # noqa: E402
 
-from benchmark import deembed_reference, deembed_rcwa, load_reference  # noqa: E402
+from benchmark import (  # noqa: E402
+    deembed_reference, deembed_rcwa, load_bare_control, load_reference,
+    reference_sx,
+)
 from m2_data import (  # noqa: E402
     FEATURE_NAMES, RCWA_CFG, build_example, reference_base,
 )
@@ -42,20 +45,31 @@ def parse(argv=None):
     p.add_argument("--pols", nargs="+", default=["s"], choices=["s", "p"])
     p.add_argument("--tin-dataset", choices=["labo", "beliaev"], default="beliaev")
     p.add_argument("--device", type=str, default="auto")
+    p.add_argument("--bare-dir", type=str, default=None,
+                   help="directory of bare-substrate controls; when a match "
+                        "exists the oblique reference is ratio-corrected and "
+                        "de-embedded like the normal-incidence one")
     p.add_argument("--out", type=str,
                    default=os.path.join(_HERE, "..", "reports", "m2",
                                         "dataset_generalisation.npz"))
     return p.parse_args(argv)
 
 
-def _prepare_pair(ref, res, angle, pol, n_sub):
-    """De-embed at normal incidence; compare raw at oblique.
+def _prepare_pair(ref, res, angle, pol, n_sub, bare=None):
+    """Prepare the (MEEP, RCWA) spectra for comparison.
 
-    The area-weighted de-embedding assumes the aperture and the bare padding
-    add incoherently, which fails at oblique incidence (it produced negative
-    T).  There, the MEEP cell and the RCWA supercell both contain the same
-    padding, so raw R/T is directly comparable — and empirically much better.
+    With a matched bare-substrate control the oblique reference is
+    ratio-corrected and then de-embedded like the normal-incidence one: the
+    correction removes the cell's instrument response, so the remaining
+    quantity is the aperture/padding mixture the area-weighting expects.
+    Without a control we keep the legacy policy (de-embed at 0°, raw at
+    oblique), which is what the E5 dataset used.
     """
+    if bare is not None and abs(angle) > 1e-9:
+        from benchmark import ratio_correct
+
+        ref_c = ratio_correct(ref, bare, angle_deg=angle, pol=pol, n_sub=n_sub)
+        return deembed_reference(ref_c), deembed_rcwa(res, angle, pol, n_sub)
     if abs(angle) < 1e-9:
         return deembed_reference(ref), deembed_rcwa(res, angle, pol, n_sub)
     ref_d = dict(ref)
@@ -86,12 +100,17 @@ def main(argv=None):
                 spec = ref["spec"]
                 wl = ref["wl_um"]
 
+                bare = load_bare_control(a.bare_dir, angle, pol,
+                                         reference_sx(ref))
                 res = spectrum_supercell(
                     spec, wl, cfg, pol=pol, angle_deg=angle,
                     tin_dataset=a.tin_dataset,
                 )
                 ref_d, rcwa_d = _prepare_pair(
-                    ref, res, angle, pol, spec.substrate_index)
+                    ref, res, angle, pol, spec.substrate_index, bare=bare)
+                if bare is not None and abs(angle) > 1e-9:
+                    print(f"  [{idx:03d} {pol} {angle:g}deg] ratio-corrected "
+                          f"with bare control", flush=True)
 
                 X, Yr, Ya, Raw = build_example(spec, wl, rcwa_d, ref_d)
                 # condition the spectrum on the illumination

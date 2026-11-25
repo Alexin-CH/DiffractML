@@ -155,6 +155,18 @@ pol-study-rcwa:
 fix-queue:
 	cd $(V7) && bash reports/m2/start_fix.sh
 
+# v2: bare-substrate ratio correction for the 60 deg campaign
+bare-control:
+	cd $(V7) && $(PYTHON) scripts/make_bare_control.py --angle 60 --pol s \
+		--sx 14.78 --n-freq 6 --resolution 140
+
+ratio-gate:
+	cd $(V7) && $(PYTHON) scripts/validate_ratio_scheme.py --angle 60 \
+		--sx 14.78 --resolution 100
+
+fix-queue2:
+	cd $(V7) && bash reports/m2/start_fix2.sh
+
 # --------------------------------------------------------------------------- #
 # Dataset  [rcwa-v7]
 # --------------------------------------------------------------------------- #

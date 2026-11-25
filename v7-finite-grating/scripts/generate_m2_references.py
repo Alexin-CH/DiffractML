@@ -53,6 +53,14 @@ def parse(argv=None):
     p.add_argument("--pol", type=str, default="s", choices=["s", "p"])
     p.add_argument("--angle", type=float, default=0.0, help="incidence angle (deg)")
     p.add_argument("--pad", type=float, default=1.5)
+    p.add_argument("--dpml", type=float, default=0.5)
+    p.add_argument("--common-sx", type=float, default=None,
+                   help="force one common cell width (um) by adjusting the pad "
+                        "per spec, so a single bare-substrate control can "
+                        "correct every reference of the campaign")
+    p.add_argument("--energy-tol", type=float, default=0.02,
+                   help="reject references with max(R+T-1) above this "
+                        "(raise for the known-biased oblique cells)")
     p.add_argument("--tin-dataset", choices=["labo", "beliaev"], default="beliaev")
     p.add_argument("--decay-by", type=float, default=1e-7)
     p.add_argument("--no-resume", action="store_true")
@@ -86,9 +94,17 @@ def main(argv=None):
             continue
 
         spec = maker(idx)
+        pad = a.pad
+        if a.common_sx:
+            pad = 0.5 * (a.common_sx - spec.aperture_width - 2.0 * a.dpml)
+            if pad <= 0.0:
+                print(f"  [{idx:03d}] common-sx {a.common_sx} too small for "
+                      f"W={spec.aperture_width:.3f}, skipping", flush=True)
+                failed.append(idx)
+                continue
         print(f"  [{idx:03d}] ridges={spec.n_ridges} period={spec.period:.3f} "
               f"amp={spec.amplitude:.3f} missing={int(spec.missing.sum())} "
-              f"pol={a.pol} angle={a.angle:g}deg", flush=True)
+              f"pol={a.pol} angle={a.angle:g}deg pad={pad:.3f}", flush=True)
         t0 = time.time()
         try:
             result = run_grating(
@@ -98,15 +114,18 @@ def main(argv=None):
                 pol=a.pol,
                 resolution=a.resolution,
                 angle_deg=a.angle,
-                pad=a.pad,
+                pad=pad,
+                dpml=a.dpml,
                 tin_dataset=a.tin_dataset,
                 decay_by=a.decay_by,
             )
             dt = time.time() - t0
             save_reference(result, base, spec=spec,
+                           energy_tol=a.energy_tol,
                            extra={"n_freq": a.n_freq,
                                   "wl_range": list(a.wl_range),
                                   "stage": a.spec_set, "angle_deg": a.angle,
+                                  "common_sx": a.common_sx,
                                   "elapsed_s": dt})
         except Exception as exc:  # keep the remaining specs alive
             failed.append(idx)
